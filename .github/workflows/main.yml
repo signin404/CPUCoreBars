@@ -20,14 +20,13 @@ jobs:
     - name: Set up MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    # 我们直接在根目录运行 msbuild，它会找到 CPUCoreBars.sln
     - name: Build the solution
       run: msbuild CPUCoreBars.sln -p:Configuration=Release -p:Platform=x64
 
-    # 上传构建好的 DLL。
-    # 输出路径是根据 VS 默认设置来的：<项目文件夹>/<平台>/<配置>/<项目名>.dll
+    # 修正了 DLL 的路径
     - name: Upload DLL artifact
       uses: actions/upload-artifact@v4
       with:
         name: cpu-core-bars-plugin-dll
-        path: CPUCoreBars/x64/Release/CPUCoreBars.dll
+        # 修正：移除项目文件夹名 CPUCoreBars/
+        path: x64/Release/CPUCoreBars.dll
