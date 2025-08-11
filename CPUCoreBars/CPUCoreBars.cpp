@@ -1,5 +1,5 @@
 // CPUCoreBars/CPUCoreBars.cpp
-#include "CPUCoreBars.hh"
+#include "CPUCoreBars.h" // <--- 已修正笔误 .hh -> .h
 #include <string>
 #include <vector>
 #include <map>
@@ -151,7 +151,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"2.0.0"; // 重大修正，更新主版本号
+    case TMI_VERSION: return L"2.0.1"; // 修正编译错误
     default: return L"";
     }
 }
