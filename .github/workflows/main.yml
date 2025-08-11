@@ -1,49 +1,33 @@
 # .github/workflows/build.yml
 
-name: Build C++ DLL Plugin
+name: Build CPUCoreBars Plugin
 
-# 工作流触发器
 on:
-  # 当有代码推送到 main 分支时触发
   push:
-    branches: [ "main" ]
-  # 当有拉取请求指向 main 分支时触发
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main" ]
-
-  # 允许您从 GitHub Actions 页面手动触发此工作流
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
   build:
-    # 指定运行此作业的虚拟机环境
     runs-on: windows-latest
 
     steps:
-    # 第 1 步：签出代码
-    # 此步骤会下载您的仓库代码到运行器中
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # 第 2 步：设置 MSBuild 环境
-    # 此步骤会找到 MSBuild.exe 并将其添加到 PATH，以便后续步骤可以直接调用
     - name: Set up MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    # 第 3 步：构建解决方案
-    # 此步骤调用 MSBuild 来编译您的项目。
-    # IMPORTANT: 将 'YourPluginName.sln' 替换为您自己的解决方案文件名。
+    # 我们直接在根目录运行 msbuild，它会找到 CPUCoreBars.sln
     - name: Build the solution
-      run: msbuild YourPluginName.sln -p:Configuration=Release -p:Platform=x64
-      
-    # 第 4 步：上传构建产物
-    # 此步骤会将编译生成的 DLL 文件打包上传，以便您可以在工作流运行结束后下载。
-    # IMPORTANT: 
-    #   1. 将 'cpu-usage-plugin' 改为您希望的产物名称。
-    #   2. 将 'x64/Release/YourPluginName.dll' 替换为实际的输出路径和 DLL 文件名。
-    #      这个路径取决于您在 Visual Studio 项目中的输出目录设置。
+      run: msbuild CPUCoreBars.sln -p:Configuration=Release -p:Platform=x64
+
+    # 上传构建好的 DLL。
+    # 输出路径是根据 VS 默认设置来的：<项目文件夹>/<平台>/<配置>/<项目名>.dll
     - name: Upload DLL artifact
       uses: actions/upload-artifact@v4
       with:
-        name: cpu-usage-plugin
-        path: x64/Release/YourPluginName.dll
+        name: cpu-core-bars-plugin-dll
+        path: CPUCoreBars/x64/Release/CPUCoreBars.dll
