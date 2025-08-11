@@ -1,5 +1,5 @@
 // CPUCoreBars/CPUCoreBars.cpp
-#include "CPUCoreBars.h"
+#include "CPUCoreBars.hh"
 #include <string>
 #include <vector>
 #include <map>
@@ -36,7 +36,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 void CCpuUsageItem::SetUsage(double usage) { m_usage = max(0.0, min(1.0, usage)); }
 
 
-// CCPUCoreBarsPlugin implementation (重写为健壮版本)
+// CCPUCoreBarsPlugin implementation (最终正确且健壮版)
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 {
     static CCPUCoreBarsPlugin instance;
@@ -45,87 +45,71 @@ CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 
 CCPUCoreBarsPlugin::CCPUCoreBarsPlugin() : m_num_cores(0)
 {
+    // 1. 打开查询，如果失败，则构造函数结束，插件不会加载
     if (PdhOpenQuery(nullptr, 0, &m_query) != ERROR_SUCCESS)
     {
-        // 如果连查询都无法打开，就彻底放弃
         return;
     }
 
-    bool enumeration_successful = false;
-    
-    // --- 尝试使用高级、准确的枚举方法 ---
+    // 2. 健壮地枚举所有 "Processor" 实例
     DWORD dwInstanceListSize = 0;
     PDH_STATUS status = PdhEnumObjectItemsW(nullptr, nullptr, L"Processor", nullptr, &dwInstanceListSize, nullptr, &dwInstanceListSize, PERF_DETAIL_WIZARD, 0);
     
-    if (status == PDH_MORE_DATA)
+    // 必须从 PDH_MORE_DATA 开始
+    if (status != PDH_MORE_DATA)
     {
-        std::vector<wchar_t> instanceList(dwInstanceListSize);
-        // 使用循环来防止在两次调用之间缓冲区大小变化的罕见情况
-        while ((status = PdhEnumObjectItemsW(nullptr, nullptr, L"Processor", nullptr, &dwInstanceListSize, instanceList.data(), &dwInstanceListSize, PERF_DETAIL_WIZARD, 0)) == PDH_MORE_DATA)
+        PdhCloseQuery(m_query); // 清理资源
+        m_query = nullptr;
+        return; // 如果无法获取缓冲区大小，则放弃
+    }
+
+    std::vector<wchar_t> instanceList(dwInstanceListSize);
+    // 使用循环来防止在两次调用之间缓冲区大小变化的罕见情况
+    while ((status = PdhEnumObjectItemsW(nullptr, nullptr, L"Processor", nullptr, &dwInstanceListSize, instanceList.data(), &dwInstanceListSize, PERF_DETAIL_WIZARD, 0)) == PDH_MORE_DATA)
+    {
+        instanceList.resize(dwInstanceListSize);
+    }
+
+    // 只有在最终成功时才继续
+    if (status == ERROR_SUCCESS)
+    {
+        std::map<int, std::wstring> core_map;
+        for (const wchar_t* pInstance = instanceList.data(); *pInstance; pInstance += wcslen(pInstance) + 1)
         {
-            instanceList.resize(dwInstanceListSize);
+            if (wcscmp(pInstance, L"_Total") == 0) continue;
+            int core_index = _wtoi(pInstance);
+            core_map[core_index] = pInstance;
         }
 
-        if (status == ERROR_SUCCESS)
+        // 确保我们真的找到了核心
+        if (!core_map.empty())
         {
-            std::map<int, std::wstring> core_map;
-            for (const wchar_t* pInstance = instanceList.data(); *pInstance; pInstance += wcslen(pInstance) + 1)
-            {
-                if (wcscmp(pInstance, L"_Total") == 0) continue;
-                int core_index = _wtoi(pInstance);
-                core_map[core_index] = pInstance;
-            }
+            m_num_cores = static_cast<int>(core_map.size());
+            m_items.reserve(m_num_cores);
+            m_counters.reserve(m_num_cores);
 
-            if (!core_map.empty())
+            // 遍历排序后的 map，确保顺序和编号完全正确
+            for (const auto& pair : core_map)
             {
-                m_num_cores = static_cast<int>(core_map.size());
-                m_items.reserve(m_num_cores);
-                m_counters.reserve(m_num_cores);
-
-                for (const auto& pair : core_map)
+                // 使用 map 的 key (已排序的真实核心编号) 创建显示项
+                m_items.push_back(new CCpuUsageItem(pair.first));
+                
+                // 使用 map 的 value (对应的实例名) 创建计数器
+                wchar_t counter_path[128];
+                swprintf_s(counter_path, L"\\Processor(%s)\\%% Processor Time", pair.second.c_str());
+                PDH_HCOUNTER counter;
+                if (PdhAddCounterW(m_query, counter_path, 0, &counter) == ERROR_SUCCESS)
                 {
-                    m_items.push_back(new CCpuUsageItem(pair.first));
-                    wchar_t counter_path[128];
-                    swprintf_s(counter_path, L"\\Processor(%s)\\%% Processor Time", pair.second.c_str());
-                    PDH_HCOUNTER counter;
-                    if (PdhAddCounterW(m_query, counter_path, 0, &counter) == ERROR_SUCCESS)
-                    {
-                        m_counters.push_back(counter);
-                    }
+                    m_counters.push_back(counter);
                 }
-                enumeration_successful = true;
             }
         }
     }
+    
+    // 如果 m_items 或 m_counters 在此之后仍然为空 (因为枚举失败或没有找到核心),
+    // 插件将不会加载，这是正确的行为。
 
-    // --- 后备方案 (Fallback) ---
-    // 如果高级枚举失败，则使用简单但保证能工作的方法
-    if (!enumeration_successful)
-    {
-        SYSTEM_INFO sys_info;
-        GetSystemInfo(&sys_info);
-        m_num_cores = sys_info.dwNumberOfProcessors;
-
-        m_items.clear(); // 清理可能存在的失败尝试
-        m_counters.clear();
-        
-        m_items.reserve(m_num_cores);
-        m_counters.reserve(m_num_cores);
-
-        for (int i = 0; i < m_num_cores; ++i)
-        {
-            m_items.push_back(new CCpuUsageItem(i));
-            wchar_t counter_path[128];
-            swprintf_s(counter_path, L"\\Processor(%d)\\%% Processor Time", i);
-            PDH_HCOUNTER counter;
-            if (PdhAddCounterW(m_query, counter_path, 0, &counter) == ERROR_SUCCESS)
-            {
-                m_counters.push_back(counter);
-            }
-        }
-    }
-
-    // 首次收集数据以初始化计数器
+    // 3. 首次收集数据以初始化
     if (!m_counters.empty())
     {
         PdhCollectQueryData(m_query);
@@ -167,13 +151,14 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"1.3.0"; // 健壮性更新
+    case TMI_VERSION: return L"2.0.0"; // 重大修正，更新主版本号
     default: return L"";
     }
 }
 
 void CCPUCoreBarsPlugin::UpdateCpuUsage()
 {
+    // 增加一个额外的安全检查
     if (!m_query || m_counters.empty() || m_counters.size() != m_items.size()) return;
 
     if (PdhCollectQueryData(m_query) == ERROR_SUCCESS)
