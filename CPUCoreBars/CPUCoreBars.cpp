@@ -2,7 +2,7 @@
 #include "CPUCoreBars.h"
 #include <string>
 #include <vector>
-#include <map>          // <--- 引入 map 用于排序
+#include <map>
 #include <PdhMsg.h>
 
 #pragma comment(lib, "pdh.lib")
@@ -36,7 +36,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 void CCpuUsageItem::SetUsage(double usage) { m_usage = max(0.0, min(1.0, usage)); }
 
 
-// CCPUCoreBarsPlugin implementation (大幅修改构造函数)
+// CCPUCoreBarsPlugin implementation (重写为健壮版本)
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 {
     static CCPUCoreBarsPlugin instance;
@@ -45,56 +45,78 @@ CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 
 CCPUCoreBarsPlugin::CCPUCoreBarsPlugin() : m_num_cores(0)
 {
-    // --- 1. 初始化 PDH 查询 ---
     if (PdhOpenQuery(nullptr, 0, &m_query) != ERROR_SUCCESS)
     {
-        return; // 初始化失败，直接返回
+        // 如果连查询都无法打开，就彻底放弃
+        return;
     }
 
-    // --- 2. 枚举 Processor 对象的所有实例来获取真实的核心编号 ---
-    DWORD dwCounterListSize = 0;
+    bool enumeration_successful = false;
+    
+    // --- 尝试使用高级、准确的枚举方法 ---
     DWORD dwInstanceListSize = 0;
-    // 首次调用获取所需缓冲区大小
-    PdhEnumObjectItemsW(nullptr, nullptr, L"Processor", nullptr, &dwCounterListSize, nullptr, &dwInstanceListSize, PERF_DETAIL_WIZARD, 0);
-
-    std::vector<wchar_t> instanceList(dwInstanceListSize);
-    // 再次调用获取实例列表
-    if (PdhEnumObjectItemsW(nullptr, nullptr, L"Processor", nullptr, &dwCounterListSize, instanceList.data(), &dwInstanceListSize, PERF_DETAIL_WIZARD, 0) == ERROR_SUCCESS)
+    PDH_STATUS status = PdhEnumObjectItemsW(nullptr, nullptr, L"Processor", nullptr, &dwInstanceListSize, nullptr, &dwInstanceListSize, PERF_DETAIL_WIZARD, 0);
+    
+    if (status == PDH_MORE_DATA)
     {
-        // 使用 map 来自动排序核心，确保 UI 显示顺序正确
-        std::map<int, std::wstring> core_map;
-
-        // 遍历多字符串缓冲区
-        for (const wchar_t* pInstance = instanceList.data(); *pInstance; pInstance += wcslen(pInstance) + 1)
+        std::vector<wchar_t> instanceList(dwInstanceListSize);
+        // 使用循环来防止在两次调用之间缓冲区大小变化的罕见情况
+        while ((status = PdhEnumObjectItemsW(nullptr, nullptr, L"Processor", nullptr, &dwInstanceListSize, instanceList.data(), &dwInstanceListSize, PERF_DETAIL_WIZARD, 0)) == PDH_MORE_DATA)
         {
-            // 过滤掉代表总使用率的 "_Total" 实例
-            if (wcscmp(pInstance, L"_Total") == 0)
-            {
-                continue;
-            }
-
-            // 将实例名（核心编号字符串）转换为整数
-            int core_index = _wtoi(pInstance);
-            core_map[core_index] = pInstance;
+            instanceList.resize(dwInstanceListSize);
         }
 
-        // --- 3. 根据排序后的核心列表创建计数器和插件项 ---
-        m_num_cores = static_cast<int>(core_map.size());
+        if (status == ERROR_SUCCESS)
+        {
+            std::map<int, std::wstring> core_map;
+            for (const wchar_t* pInstance = instanceList.data(); *pInstance; pInstance += wcslen(pInstance) + 1)
+            {
+                if (wcscmp(pInstance, L"_Total") == 0) continue;
+                int core_index = _wtoi(pInstance);
+                core_map[core_index] = pInstance;
+            }
+
+            if (!core_map.empty())
+            {
+                m_num_cores = static_cast<int>(core_map.size());
+                m_items.reserve(m_num_cores);
+                m_counters.reserve(m_num_cores);
+
+                for (const auto& pair : core_map)
+                {
+                    m_items.push_back(new CCpuUsageItem(pair.first));
+                    wchar_t counter_path[128];
+                    swprintf_s(counter_path, L"\\Processor(%s)\\%% Processor Time", pair.second.c_str());
+                    PDH_HCOUNTER counter;
+                    if (PdhAddCounterW(m_query, counter_path, 0, &counter) == ERROR_SUCCESS)
+                    {
+                        m_counters.push_back(counter);
+                    }
+                }
+                enumeration_successful = true;
+            }
+        }
+    }
+
+    // --- 后备方案 (Fallback) ---
+    // 如果高级枚举失败，则使用简单但保证能工作的方法
+    if (!enumeration_successful)
+    {
+        SYSTEM_INFO sys_info;
+        GetSystemInfo(&sys_info);
+        m_num_cores = sys_info.dwNumberOfProcessors;
+
+        m_items.clear(); // 清理可能存在的失败尝试
+        m_counters.clear();
+        
         m_items.reserve(m_num_cores);
         m_counters.reserve(m_num_cores);
 
-        for (const auto& pair : core_map)
+        for (int i = 0; i < m_num_cores; ++i)
         {
-            int core_index = pair.first;
-            const std::wstring& instance_name = pair.second;
-
-            // 创建插件项
-            m_items.push_back(new CCpuUsageItem(core_index));
-
-            // 构建正确的计数器路径，例如 "\Processor(5)\% Processor Time"
+            m_items.push_back(new CCpuUsageItem(i));
             wchar_t counter_path[128];
-            swprintf_s(counter_path, L"\\Processor(%s)\\%% Processor Time", instance_name.c_str());
-            
+            swprintf_s(counter_path, L"\\Processor(%d)\\%% Processor Time", i);
             PDH_HCOUNTER counter;
             if (PdhAddCounterW(m_query, counter_path, 0, &counter) == ERROR_SUCCESS)
             {
@@ -103,7 +125,7 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin() : m_num_cores(0)
         }
     }
 
-    // --- 4. 首次收集数据以初始化计数器 ---
+    // 首次收集数据以初始化计数器
     if (!m_counters.empty())
     {
         PdhCollectQueryData(m_query);
@@ -145,14 +167,14 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"1.2.0"; // 修正了核心匹配问题，更新版本号
+    case TMI_VERSION: return L"1.3.0"; // 健壮性更新
     default: return L"";
     }
 }
 
 void CCPUCoreBarsPlugin::UpdateCpuUsage()
 {
-    if (!m_query || m_counters.empty()) return;
+    if (!m_query || m_counters.empty() || m_counters.size() != m_items.size()) return;
 
     if (PdhCollectQueryData(m_query) == ERROR_SUCCESS)
     {
