@@ -30,93 +30,8 @@ void CCpuUsageItem::SetUsage(double usage)
     m_usage = max(0.0, min(1.0, usage));
 }
 
-// 美化后的树叶图标绘制函数
+// 美化后的树叶图标绘制函数 - 现在只有一个版本，包含了所有美化效果
 void CCpuUsageItem::DrawLeafIcon(HDC hDC, const RECT& rect, bool dark_mode)
-{
-    // 计算图标大小和位置
-    int center_x = rect.left + (rect.right - rect.left) / 2;
-    int center_y = rect.top + (rect.bottom - rect.top) / 2;
-    int leaf_width = min(8, (rect.right - rect.left) / 2);
-    int leaf_height = min(10, (rect.bottom - rect.top) / 2);
-    
-    // 颜色设置 - 更加精美的绿色系
-    COLORREF leaf_color = dark_mode ? RGB(85, 170, 85) : RGB(76, 175, 80);      // 叶子主色
-    COLORREF stem_color = dark_mode ? RGB(101, 67, 33) : RGB(139, 95, 51);      // 茎的颜色
-    COLORREF vein_color = dark_mode ? RGB(70, 140, 70) : RGB(56, 142, 60);      // 叶脉颜色
-    
-    // 创建画笔和画刷
-    HPEN stem_pen = CreatePen(PS_SOLID, 2, stem_color);
-    HPEN leaf_pen = CreatePen(PS_SOLID, 1, leaf_color);
-    HPEN vein_pen = CreatePen(PS_SOLID, 1, vein_color);
-    HBRUSH leaf_brush = CreateSolidBrush(leaf_color);
-    
-    HPEN old_pen = (HPEN)SelectObject(hDC, stem_pen);
-    HBRUSH old_brush = (HBRUSH)SelectObject(hDC, leaf_brush);
-    
-    // 1. 绘制茎部 - 稍微粗一些，更立体
-    SelectObject(hDC, stem_pen);
-    MoveToEx(hDC, center_x, center_y + leaf_height/2 + 3, NULL);
-    LineTo(hDC, center_x, center_y - leaf_height/2 - 1);
-    
-    // 2. 绘制叶子形状 - 使用多边形创建更自然的叶子
-    SelectObject(hDC, leaf_pen);
-    
-    // 定义叶子的关键点
-    POINT leaf_points[7];
-    leaf_points[0] = {center_x, center_y - leaf_height/2};           // 顶点
-    leaf_points[1] = {center_x + leaf_width/2, center_y - leaf_height/4}; // 右上
-    leaf_points[2] = {center_x + leaf_width/2, center_y + leaf_height/4}; // 右下
-    leaf_points[3] = {center_x, center_y + leaf_height/2};           // 底点
-    leaf_points[4] = {center_x - leaf_width/2, center_y + leaf_height/4}; // 左下
-    leaf_points[5] = {center_x - leaf_width/2, center_y - leaf_height/4}; // 左上
-    leaf_points[6] = {center_x, center_y - leaf_height/2};           // 回到顶点
-    
-    // 绘制并填充叶子
-    Polygon(hDC, leaf_points, 6);
-    
-    // 3. 绘制叶脉 - 增加细节
-    SelectObject(hDC, vein_pen);
-    
-    // 主叶脉 (中央)
-    MoveToEx(hDC, center_x, center_y - leaf_height/2, NULL);
-    LineTo(hDC, center_x, center_y + leaf_height/2);
-    
-    // 侧叶脉 (左侧)
-    MoveToEx(hDC, center_x, center_y - leaf_height/4, NULL);
-    LineTo(hDC, center_x - leaf_width/3, center_y);
-    MoveToEx(hDC, center_x, center_y, NULL);
-    LineTo(hDC, center_x - leaf_width/3, center_y + leaf_height/4);
-    
-    // 侧叶脉 (右侧)
-    MoveToEx(hDC, center_x, center_y - leaf_height/4, NULL);
-    LineTo(hDC, center_x + leaf_width/3, center_y);
-    MoveToEx(hDC, center_x, center_y, NULL);
-    LineTo(hDC, center_x + leaf_width/3, center_y + leaf_height/4);
-    
-    // 4. 添加高光效果 (可选)
-    if (!dark_mode) {
-        COLORREF highlight_color = RGB(144, 238, 144); // 浅绿色高光
-        HPEN highlight_pen = CreatePen(PS_SOLID, 1, highlight_color);
-        SelectObject(hDC, highlight_pen);
-        
-        // 在叶子左上角添加小高光
-        MoveToEx(hDC, center_x - 1, center_y - leaf_height/3, NULL);
-        LineTo(hDC, center_x - 2, center_y - leaf_height/3 + 2);
-        
-        DeleteObject(highlight_pen);
-    }
-    
-    // 恢复原始对象并清理
-    SelectObject(hDC, old_pen);
-    SelectObject(hDC, old_brush);
-    DeleteObject(stem_pen);
-    DeleteObject(leaf_pen);
-    DeleteObject(vein_pen);
-    DeleteObject(leaf_brush);
-}
-
-// 进一步优化版本 - 使用更复杂的形状和渐变效果
-void CCpuUsageItem::DrawAdvancedLeafIcon(HDC hDC, const RECT& rect, bool dark_mode)
 {
     // 计算图标大小和位置
     int center_x = rect.left + (rect.right - rect.left) / 2;
@@ -129,22 +44,25 @@ void CCpuUsageItem::DrawAdvancedLeafIcon(HDC hDC, const RECT& rect, bool dark_mo
     COLORREF dark_color = dark_mode ? RGB(56, 112, 56) : RGB(46, 125, 50);
     COLORREF light_color = dark_mode ? RGB(129, 199, 132) : RGB(165, 214, 167);
     COLORREF stem_color = dark_mode ? RGB(101, 67, 33) : RGB(139, 95, 51);
+    COLORREF vein_color = dark_mode ? RGB(70, 140, 70) : RGB(56, 142, 60);
     
-    // 创建渐变效果的画刷 (简化版本，使用分层绘制)
+    // 创建画笔和画刷
     HBRUSH dark_brush = CreateSolidBrush(dark_color);
     HBRUSH base_brush = CreateSolidBrush(base_color);
     HBRUSH light_brush = CreateSolidBrush(light_color);
     HPEN stem_pen = CreatePen(PS_SOLID, 2, stem_color);
     HPEN leaf_pen = CreatePen(PS_SOLID, 1, base_color);
+    HPEN vein_pen = CreatePen(PS_SOLID, 1, vein_color);
     
     HPEN old_pen = (HPEN)SelectObject(hDC, stem_pen);
     HBRUSH old_brush = (HBRUSH)SelectObject(hDC, base_brush);
     
     // 1. 绘制茎部
+    SelectObject(hDC, stem_pen);
     MoveToEx(hDC, center_x, center_y + leaf_height/2 + 3, NULL);
     LineTo(hDC, center_x, center_y - leaf_height/2);
     
-    // 2. 绘制叶子的阴影层 (稍微偏移)
+    // 2. 绘制叶子的阴影层 (稍微偏移创建深度效果)
     SelectObject(hDC, dark_brush);
     POINT shadow_points[6];
     shadow_points[0] = {center_x + 1, center_y - leaf_height/2 + 1};
@@ -175,21 +93,38 @@ void CCpuUsageItem::DrawAdvancedLeafIcon(HDC hDC, const RECT& rect, bool dark_mo
     highlight_points[3] = {center_x - leaf_width/3, center_y - leaf_height/6};
     Polygon(hDC, highlight_points, 4);
     
-    // 5. 绘制叶脉
-    SelectObject(hDC, leaf_pen);
+    // 5. 绘制详细叶脉
+    SelectObject(hDC, vein_pen);
     // 主脉
     MoveToEx(hDC, center_x, center_y - leaf_height/2, NULL);
     LineTo(hDC, center_x, center_y + leaf_height/2);
     
-    // 侧脉
+    // 侧脉 - 上半部分
     MoveToEx(hDC, center_x, center_y - leaf_height/4, NULL);
     LineTo(hDC, center_x - leaf_width/3, center_y);
     MoveToEx(hDC, center_x, center_y - leaf_height/4, NULL);
     LineTo(hDC, center_x + leaf_width/3, center_y);
+    
+    // 侧脉 - 下半部分
     MoveToEx(hDC, center_x, center_y + leaf_height/6, NULL);
     LineTo(hDC, center_x - leaf_width/4, center_y + leaf_height/3);
     MoveToEx(hDC, center_x, center_y + leaf_height/6, NULL);
     LineTo(hDC, center_x + leaf_width/4, center_y + leaf_height/3);
+    
+    // 6. 添加额外的高光效果 (浅色模式)
+    if (!dark_mode) {
+        COLORREF highlight_color = RGB(200, 255, 200); // 非常浅的绿色高光
+        HPEN highlight_pen = CreatePen(PS_SOLID, 1, highlight_color);
+        SelectObject(hDC, highlight_pen);
+        
+        // 在叶子边缘添加小高光线
+        MoveToEx(hDC, center_x - 1, center_y - leaf_height/3, NULL);
+        LineTo(hDC, center_x - 2, center_y - leaf_height/3 + 2);
+        MoveToEx(hDC, center_x + 1, center_y - leaf_height/4, NULL);
+        LineTo(hDC, center_x + 2, center_y - leaf_height/4 + 1);
+        
+        DeleteObject(highlight_pen);
+    }
     
     // 恢复对象并清理
     SelectObject(hDC, old_pen);
@@ -199,6 +134,7 @@ void CCpuUsageItem::DrawAdvancedLeafIcon(HDC hDC, const RECT& rect, bool dark_mo
     DeleteObject(light_brush);
     DeleteObject(stem_pen);
     DeleteObject(leaf_pen);
+    DeleteObject(vein_pen);
 }
 
 // DrawItem 函数大改，实现颜色选择和图标绘制
@@ -215,8 +151,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
     // 2. 如果是 E-Core，绘制美化的树叶图标
     if (m_is_e_core)
     {
-        DrawLeafIcon(dc, rect, dark_mode);  // 使用基础美化版本
-        // DrawAdvancedLeafIcon(dc, rect, dark_mode);  // 或者使用高级版本
+        DrawLeafIcon(dc, rect, dark_mode);
     }
 
     // 3. 根据核心索引选择条形图颜色
