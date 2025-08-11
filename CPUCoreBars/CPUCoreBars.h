@@ -2,8 +2,31 @@
 #pragma once
 #include <windows.h>
 #include <vector>
-#include <Pdh.h> // <--- 添加 PDH 头文件
 #include "PluginInterface.h"
+
+// --- 定义 NtQuerySystemInformation 所需的结构和类型 ---
+
+// 这个结构包含了单个处理器的性能时间信息
+typedef struct _SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION {
+    LARGE_INTEGER IdleTime;
+    LARGE_INTEGER KernelTime;
+    LARGE_INTEGER UserTime;
+    LARGE_INTEGER DpcTime;
+    LARGE_INTEGER InterruptTime;
+    ULONG InterruptCount;
+} SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION;
+
+// 定义我们要查询的信息类别
+#define SystemProcessorPerformanceInformation 8
+
+// 定义函数指针类型
+typedef LONG(WINAPI* pNtQuerySystemInformation)(
+    ULONG SystemInformationClass,
+    PVOID SystemInformation,
+    ULONG SystemInformationLength,
+    PULONG ReturnLength
+);
+
 
 class CCpuUsageItem : public IPluginItem
 {
@@ -40,16 +63,17 @@ public:
 
 private:
     CCPUCoreBarsPlugin();
-    ~CCPUCoreBarsPlugin(); // <--- 需要实现析构函数来清理资源
+    ~CCPUCoreBarsPlugin();
     CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
     CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
 
     void UpdateCpuUsage();
 
     std::vector<CCpuUsageItem*> m_items;
-    int m_num_cores;
-
-    // --- 新增的 PDH 成员变量 ---
-    PDH_HQUERY m_query = nullptr;
-    std::vector<PDH_HCOUNTER> m_counters;
+    
+    // --- 新的成员变量 ---
+    pNtQuerySystemInformation m_pNtQuerySystemInformation = nullptr;
+    int m_num_cores = 0;
+    std::vector<SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION> m_last_perf_info;
+    bool m_is_first_run = true;
 };
