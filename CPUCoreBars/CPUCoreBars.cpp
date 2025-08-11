@@ -1,8 +1,11 @@
 // CPUCoreBars/CPUCoreBars.cpp
 #include "CPUCoreBars.h"
 #include <string>
+#include <PdhMsg.h> // <--- 包含 PDH 错误信息头文件
 
-// CCpuUsageItem implementation
+#pragma comment(lib, "pdh.lib") // <--- 链接 PDH 库
+
+// CCpuUsageItem implementation (这部分不需要修改)
 CCpuUsageItem::CCpuUsageItem(int core_index) : m_core_index(core_index)
 {
     swprintf_s(m_item_name, L"CPU Core %d", m_core_index);
@@ -34,10 +37,11 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 
 void CCpuUsageItem::SetUsage(double usage)
 {
-    m_usage = max(0.0, min(1.0, usage)); // Clamp usage between 0.0 and 1.0
+    m_usage = max(0.0, min(1.0, usage));
 }
 
-// CCPUCoreBarsPlugin implementation
+
+// CCPUCoreBarsPlugin implementation (这部分被大幅修改)
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 {
     static CCPUCoreBarsPlugin instance;
@@ -46,13 +50,45 @@ CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 
 CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
 {
+    // 获取核心数
     SYSTEM_INFO sys_info;
     GetSystemInfo(&sys_info);
     m_num_cores = sys_info.dwNumberOfProcessors;
 
+    // 创建显示项
     for (int i = 0; i < m_num_cores; ++i)
     {
         m_items.push_back(new CCpuUsageItem(i));
+    }
+
+    // --- 初始化 PDH 查询 ---
+    if (PdhOpenQuery(nullptr, 0, &m_query) == ERROR_SUCCESS)
+    {
+        m_counters.resize(m_num_cores);
+        for (int i = 0; i < m_num_cores; ++i)
+        {
+            wchar_t counter_path[128];
+            // 构建每个核心的性能计数器路径, e.g., "\Processor(0)\% Processor Time"
+            swprintf_s(counter_path, L"\\Processor(%d)\\%% Processor Time", i);
+            PdhAddCounterW(m_query, counter_path, 0, &m_counters[i]);
+        }
+        // **重要**: 必须先收集一次数据来初始化计数器，否则第一次读取会失败
+        PdhCollectQueryData(m_query);
+    }
+}
+
+CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
+{
+    // --- 清理 PDH 资源 ---
+    if (m_query)
+    {
+        PdhCloseQuery(m_query);
+    }
+
+    // 清理显示项
+    for (auto item : m_items)
+    {
+        delete item;
     }
 }
 
@@ -79,23 +115,37 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"1.0.0";
+    case TMI_VERSION: return L"1.1.0"; // 版本号+1
     default: return L"";
     }
 }
 
 void CCPUCoreBarsPlugin::UpdateCpuUsage()
 {
-    // For demonstration, we use random data.
-    // For a real plugin, you would use PDH or other system calls here.
-    for (auto& item : m_items)
+    if (!m_query) return;
+
+    // 收集最新的性能数据
+    if (PdhCollectQueryData(m_query) == ERROR_SUCCESS)
     {
-        double random_usage = (static_cast<double>(rand() % 101)) / 100.0;
-        item->SetUsage(random_usage);
+        for (int i = 0; i < m_num_cores; ++i)
+        {
+            PDH_FMT_COUNTERVALUE value;
+            // 获取格式化后的值 (双精度浮点数)
+            if (PdhGetFormattedCounterValue(m_counters[i], PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS)
+            {
+                // value.doubleValue 的范围是 0.0 到 100.0
+                // 我们需要将其转换为 0.0 到 1.0 的范围用于绘制
+                m_items[i]->SetUsage(value.doubleValue / 100.0);
+            }
+            else
+            {
+                m_items[i]->SetUsage(0.0); // 如果获取失败，则显示为0
+            }
+        }
     }
 }
 
-// Exported function
+// Exported function (不需要修改)
 extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance()
 {
     return &CCPUCoreBarsPlugin::Instance();

@@ -2,6 +2,7 @@
 #pragma once
 #include <windows.h>
 #include <vector>
+#include <Pdh.h> // <--- 添加 PDH 头文件
 #include "PluginInterface.h"
 
 class CCpuUsageItem : public IPluginItem
@@ -39,7 +40,7 @@ public:
 
 private:
     CCPUCoreBarsPlugin();
-    ~CCPUCoreBarsPlugin() = default;
+    ~CCPUCoreBarsPlugin(); // <--- 需要实现析构函数来清理资源
     CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
     CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
 
@@ -47,4 +48,8 @@ private:
 
     std::vector<CCpuUsageItem*> m_items;
     int m_num_cores;
+
+    // --- 新增的 PDH 成员变量 ---
+    PDH_HQUERY m_query = nullptr;
+    std::vector<PDH_HCOUNTER> m_counters;
 };
