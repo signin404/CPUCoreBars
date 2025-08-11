@@ -1,41 +1,49 @@
-// CPUCoreBars/CPUCoreBars.cpp (更新后)
 #include "CPUCoreBars.h"
 #include <string>
+#include <Pdh.h>
 #include <PdhMsg.h>
 
 #pragma comment(lib, "pdh.lib")
 
-// CCpuUsageItem implementation
+//==================================================================================
+// CCpuUsageItem Class Implementation
+// (每个独立的条形图显示项)
+//==================================================================================
+
 CCpuUsageItem::CCpuUsageItem(int core_index) : m_core_index(core_index)
 {
+    // 初始化项目名称和ID, e.g., "CPU Core 0", "cpu_core_0"
     swprintf_s(m_item_name, L"CPU Core %d", m_core_index);
     swprintf_s(m_item_id, L"cpu_core_%d", m_core_index);
-    // --- 新增：设置一个默认颜色 ---
-    m_color = RGB(0, 128, 0); // 默认为绿色
+    
+    // 设置一个默认的条形图颜色（绿色）
+    // 这个颜色可以被用户在设置中覆盖
+    m_color = RGB(0, 128, 0);
 }
 
-// ... (GetItemName, GetItemId 等函数保持不变) ...
 const wchar_t* CCpuUsageItem::GetItemName() const { return m_item_name; }
 const wchar_t* CCpuUsageItem::GetItemId() const { return m_item_id; }
 const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueSampleText() const { return L""; }
 bool CCpuUsageItem::IsCustomDraw() const { return true; }
-int CCpuUsageItem::GetItemWidth() const { return 8; }
-
+int CCpuUsageItem::GetItemWidth() const { return 8; } // 每个条形图的宽度
 
 void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
     RECT rect = { x, y, x + w, y + h };
-    // 背景色仍然可以根据深色模式变化
+
+    // 1. 绘制背景 (根据深色/浅色模式)
     HBRUSH bg_brush = CreateSolidBrush(dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255));
     FillRect(dc, &rect, bg_brush);
     DeleteObject(bg_brush);
 
+    // 2. 计算条形图的高度
     int bar_height = static_cast<int>(h * m_usage);
     RECT bar_rect = { x, y + (h - bar_height), x + w, y + h };
-    // --- 修改：使用 m_color 绘制条形图 ---
+
+    // 3. 使用用户设置的颜色(m_color)绘制条形图
     HBRUSH bar_brush = CreateSolidBrush(m_color);
     FillRect(dc, &bar_rect, bar_brush);
     DeleteObject(bar_brush);
@@ -43,10 +51,10 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 
 void CCpuUsageItem::SetUsage(double usage)
 {
+    // 将使用率限制在 0.0 到 1.0 之间
     m_usage = max(0.0, min(1.0, usage));
 }
 
-// --- 新增：颜色接口的实现 ---
 COLORREF CCpuUsageItem::GetItemColor() const
 {
     return m_color;
@@ -58,15 +66,74 @@ void CCpuUsageItem::SetItemColor(COLORREF color)
 }
 
 
-// CCPUCoreBarsPlugin implementation
-// ... (构造函数、析构函数等保持不变) ...
-CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance() { static CCPUCoreBarsPlugin instance; return instance; }
-CCPUCoreBarsPlugin::CCPUCoreBarsPlugin() { /* ... */ }
-CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin() { /* ... */ }
-IPluginItem* CCPUCoreBarsPlugin::GetItem(int index) { /* ... */ }
-void CCPUCoreBarsPlugin::DataRequired() { UpdateCpuUsage(); }
-void CCPUCoreBarsPlugin::UpdateCpuUsage() { /* ... */ }
+//==================================================================================
+// CCPUCoreBarsPlugin Class Implementation
+// (插件的主类)
+//==================================================================================
 
+CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
+{
+    static CCPUCoreBarsPlugin instance;
+    return instance;
+}
+
+CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
+{
+    // 获取系统中的CPU核心数量
+    SYSTEM_INFO sys_info;
+    GetSystemInfo(&sys_info);
+    m_num_cores = sys_info.dwNumberOfProcessors;
+
+    // 为每个核心创建一个显示项
+    for (int i = 0; i < m_num_cores; ++i)
+    {
+        m_items.push_back(new CCpuUsageItem(i));
+    }
+
+    // 初始化PDH查询，用于获取性能数据
+    if (PdhOpenQuery(nullptr, 0, &m_query) == ERROR_SUCCESS)
+    {
+        m_counters.resize(m_num_cores);
+        for (int i = 0; i < m_num_cores; ++i)
+        {
+            wchar_t counter_path[128];
+            // 构建每个核心的性能计数器路径, e.g., "\Processor(0)\% Processor Time"
+            swprintf_s(counter_path, L"\\Processor(%d)\\%% Processor Time", i);
+            PdhAddCounterW(m_query, counter_path, 0, &m_counters[i]);
+        }
+        // 第一次调用以初始化计数器，否则首次读取会失败
+        PdhCollectQueryData(m_query);
+    }
+}
+
+CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
+{
+    // 清理PDH资源
+    if (m_query)
+    {
+        PdhCloseQuery(m_query);
+    }
+
+    // 清理所有显示项对象
+    for (auto item : m_items)
+    {
+        delete item;
+    }
+}
+
+IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
+{
+    if (index >= 0 && static_cast<size_t>(index) < m_items.size())
+    {
+        return m_items[index];
+    }
+    return nullptr;
+}
+
+void CCPUCoreBarsPlugin::DataRequired()
+{
+    UpdateCpuUsage();
+}
 
 const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
@@ -74,15 +141,44 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     {
     case TMI_NAME: return L"CPU Core Usage Bars";
     case TMI_DESCRIPTION: return L"Displays each CPU core usage as a vertical bar with configurable colors.";
-    case TMI_AUTHOR: return L"Your Name";
+    case TMI_AUTHOR: return L"Generated by AI";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"1.2.0"; // 增加了新功能，更新版本号
+    case TMI_VERSION: return L"1.2.0"; // 版本号，反映了新功能
     default: return L"";
     }
 }
 
-// Exported function (保持不变)
+void CCPUCoreBarsPlugin::UpdateCpuUsage()
+{
+    if (!m_query) return;
+
+    // 收集最新的性能数据
+    if (PdhCollectQueryData(m_query) == ERROR_SUCCESS)
+    {
+        for (int i = 0; i < m_num_cores; ++i)
+        {
+            PDH_FMT_COUNTERVALUE value;
+            // 获取格式化后的值 (双精度浮点数)
+            if (PdhGetFormattedCounterValue(m_counters[i], PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS)
+            {
+                // PDH返回的值范围是 0.0 到 100.0
+                // 我们需要将其转换为 0.0 到 1.0 的范围用于绘制
+                m_items[i]->SetUsage(value.doubleValue / 100.0);
+            }
+            else
+            {
+                m_items[i]->SetUsage(0.0); // 如果获取失败，则显示为0
+            }
+        }
+    }
+}
+
+//==================================================================================
+// Exported Function
+// (插件的入口点)
+//==================================================================================
+
 extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance()
 {
     return &CCPUCoreBarsPlugin::Instance();
