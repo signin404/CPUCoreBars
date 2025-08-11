@@ -2,7 +2,7 @@
 #include "CPUCoreBars.h"
 #include <string>
 
-// CCpuUsageItem implementation (无需修改)
+// CCpuUsageItem implementation (No changes needed)
 CCpuUsageItem::CCpuUsageItem(int core_index) : m_core_index(core_index)
 {
     swprintf_s(m_item_name, L"CPU Core %d", m_core_index);
@@ -31,7 +31,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 void CCpuUsageItem::SetUsage(double usage) { m_usage = max(0.0, min(1.0, usage)); }
 
 
-// CCPUCoreBarsPlugin implementation (全新实现)
+// CCPUCoreBarsPlugin implementation (New, reliable implementation)
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 {
     static CCPUCoreBarsPlugin instance;
@@ -40,26 +40,24 @@ CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 
 CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
 {
-    // 1. 动态加载 ntdll.dll 并获取函数地址
+    // 1. Dynamically load ntdll.dll and get the function address
     HMODULE hNtDll = GetModuleHandleW(L"ntdll.dll");
     if (hNtDll)
     {
         m_pNtQuerySystemInformation = (pNtQuerySystemInformation)GetProcAddress(hNtDll, "NtQuerySystemInformation");
     }
 
-    // 如果无法获取函数，插件将为空，不会加载。这是正确的行为。
     if (!m_pNtQuerySystemInformation)
     {
         return;
     }
 
-    // 2. 获取核心数，这个方法非常稳定
+    // 2. Get the number of cores
     SYSTEM_INFO sys_info;
     GetSystemInfo(&sys_info);
     m_num_cores = sys_info.dwNumberOfProcessors;
 
-    // 3. 根据核心数创建插件项和数据缓冲区
-    // 这个构造函数现在非常简单，几乎不可能失败
+    // 3. Create plugin items and data buffers based on the core count
     if (m_num_cores > 0)
     {
         m_items.reserve(m_num_cores);
@@ -102,7 +100,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.0.0"; // 全新可靠的实现，更新主版本号
+    case TMI_VERSION: return L"3.0.1"; // Build fix
     default: return L"";
     }
 }
@@ -117,13 +115,11 @@ void CCPUCoreBarsPlugin::UpdateCpuUsage()
     std::vector<SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION> current_perf_info(m_num_cores);
     ULONG return_length;
 
-    // 调用API获取所有核心的当前性能时间
     if (m_pNtQuerySystemInformation(SystemProcessorPerformanceInformation, current_perf_info.data(),
         m_num_cores * sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION), &return_length) == 0) // 0 means STATUS_SUCCESS
     {
         if (m_is_first_run)
         {
-            // 第一次运行时，只记录数据，不计算
             m_last_perf_info = current_perf_info;
             m_is_first_run = false;
             return;
@@ -131,7 +127,6 @@ void CCPUCoreBarsPlugin::UpdateCpuUsage()
 
         for (int i = 0; i < m_num_cores; ++i)
         {
-            // 计算两次采样之间的总时间增量
             ULARGE_INTEGER uli_total_time_last;
             uli_total_time_last.HighPart = m_last_perf_info[i].KernelTime.HighPart + m_last_perf_info[i].UserTime.HighPart;
             uli_total_time_last.LowPart = m_last_perf_info[i].KernelTime.LowPart + m_last_perf_info[i].UserTime.LowPart;
@@ -141,11 +136,8 @@ void CCPUCoreBarsPlugin::UpdateCpuUsage()
             uli_total_time_current.LowPart = current_perf_info[i].KernelTime.LowPart + current_perf_info[i].UserTime.LowPart;
             
             ULONGLONG total_time_delta = uli_total_time_current.QuadPart - uli_total_time_last.QuadPart;
-
-            // 计算两次采样之间的空闲时间增量
             ULONGLONG idle_time_delta = current_perf_info[i].IdleTime.QuadPart - m_last_perf_info[i].IdleTime.QuadPart;
 
-            // 计算使用率
             if (total_time_delta > 0)
             {
                 double usage = (1.0 - (double)idle_time_delta / (double)total_time_delta);
@@ -157,7 +149,6 @@ void CCPUCoreBarsPlugin::UpdateCpuUsage()
             }
         }
 
-        // 更新上一次的数据为当前数据，为下一次计算做准备
         m_last_perf_info = current_perf_info;
     }
 }
@@ -165,6 +156,4 @@ void CCPUCoreBarsPlugin::UpdateCpuUsage()
 extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance()
 {
     return &CCPUCoreBarsPlugin::Instance();
-}```
-
-这次的更新是决定性的。它放弃了之前所有方案的缺点，采用了业界公认的稳定且准确的方法。请您使用这套最终代码进行编译，它应该能完美地解决您遇到的所有问题。
+}
