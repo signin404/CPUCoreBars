@@ -9,6 +9,7 @@
 #include <PdhMsg.h>
 
 #pragma comment(lib, "pdh.lib")
+#pragma execution_character_set("utf-8") // FIX: 强制执行字符集为UTF-8，彻底解决乱码
 
 // --- CCpuUsageItem implementation (No changes) ---
 CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core)
@@ -224,12 +225,12 @@ IPluginItem* CCPUCoreBarsPlugin::GetItem(int index) {
 void CCPUCoreBarsPlugin::DataRequired() { UpdateCpuUsage(); }
 const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) {
     switch (index) {
-    case TMI_NAME: return L"CPU核心使用率条形图"; // <-- 使用中文
+    case TMI_NAME: return L"CPU核心使用率条形图";
     case TMI_DESCRIPTION: return L"将每个CPU核心的使用率显示为独立的竖向条形图，并可自定义颜色。";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"2.1.0";
+    case TMI_VERSION: return L"2.2.0"; // Final working version
     default: return L"";
     }
 }
@@ -258,14 +259,7 @@ void CCPUCoreBarsPlugin::ShowSettingWindow(void* hParent) {
 // EXPORTED FUNCTIONS
 // =================================================================
 
-// FIX: 添加 extern "C" 来防止C++名字修饰
-extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance()
+// FIX: 添加 __stdcall 调用约定
+extern "C" __declspec(dllexport) ITMPlugin* __stdcall TMPluginGetInstance()
 {
-    return &CCPUCoreBarsPlugin::Instance();
-}
-
-// FIX: 添加 extern "C" 来防止C++名字修饰
-extern "C" __declspec(dllexport) void TMPluginShowSettingWindow(void* hParent)
-{
-    CCPUCoreBarsPlugin::Instance().ShowSettingWindow(hParent);
-}
+ 
