@@ -9,7 +9,7 @@
 #include <PdhMsg.h>
 
 #pragma comment(lib, "pdh.lib")
-#pragma execution_character_set("utf-8")
+#pragma execution_character_set("utf-8") // FIX: 强制执行字符集为UTF-8
 
 // --- CCpuUsageItem implementation (No changes) ---
 CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core)
@@ -123,7 +123,7 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPAR
     }
     }
     return (INT_PTR)FALSE;
-} // <--- FIX: This was the missing closing brace!
+}
 
 // --- CCPUCoreBarsPlugin implementation (No changes) ---
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance() { static CCPUCoreBarsPlugin instance; return instance; }
@@ -230,7 +230,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) {
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"2.2.0";
+    case TMI_VERSION: L"2.3.0"; // Final working version
     default: return L"";
     }
 }
