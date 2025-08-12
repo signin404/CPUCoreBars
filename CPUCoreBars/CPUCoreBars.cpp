@@ -1,4 +1,3 @@
-// CPUCoreBars/CPUCoreBars.cpp
 #include "CPUCoreBars.h"
 #include "resource.h"
 #include <string>
@@ -9,18 +8,56 @@
 #include <PdhMsg.h>
 
 #pragma comment(lib, "pdh.lib")
-#pragma execution_character_set("utf-8") // FIX: 强制执行字符集为UTF-8
+#pragma execution_character_set("utf-8")
 
-// --- CCpuUsageItem implementation (No changes) ---
+// FIX: Add __stdcall to all method implementations
+const wchar_t* __stdcall CCpuUsageItem::GetItemName() const { return m_item_name; }
+const wchar_t* __stdcall CCpuUsageItem::GetItemId() const { return m_item_id; }
+const wchar_t* __stdcall CCpuUsageItem::GetItemLableText() const { return L""; }
+const wchar_t* __stdcall CCpuUsageItem::GetItemValueText() const { return L""; }
+const wchar_t* __stdcall CCpuUsageItem::GetItemValueSampleText() const { return L""; }
+bool __stdcall CCpuUsageItem::IsCustomDraw() const { return true; }
+int __stdcall CCpuUsageItem::GetItemWidth() const { return 10; }
+void __stdcall CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) {
+    HDC dc = (HDC)hDC;
+    RECT rect = { x, y, x + w, y + h };
+    HBRUSH bg_brush = CreateSolidBrush(dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255));
+    FillRect(dc, &rect, bg_brush);
+    DeleteObject(bg_brush);
+    if (m_is_e_core) { DrawECoreSymbol(dc, rect, dark_mode); }
+    COLORREF bar_color = m_color;
+    int bar_height = static_cast<int>(h * m_usage);
+    if (bar_height > 0) {
+        RECT bar_rect = { x, y + (h - bar_height), x + w, y + h };
+        HBRUSH bar_brush = CreateSolidBrush(bar_color);
+        FillRect(dc, &bar_rect, bar_brush);
+        DeleteObject(bar_brush);
+    }
+}
+
+IPluginItem* __stdcall CCPUCoreBarsPlugin::GetItem(int index) {
+    if (index >= 0 && static_cast<size_t>(index) < m_items.size()) return m_items[index];
+    return nullptr;
+}
+void __stdcall CCPUCoreBarsPlugin::DataRequired() { UpdateCpuUsage(); }
+const wchar_t* __stdcall CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) {
+    switch (index) {
+    case TMI_NAME: return L"CPU核心使用率条形图";
+    case TMI_DESCRIPTION: return L"将每个CPU核心的使用率显示为独立的竖向条形图。";
+    case TMI_AUTHOR: return L"Your Name";
+    case TMI_COPYRIGHT: return L"Copyright (C) 2025";
+    case TMI_URL: return L"";
+    case TMI_VERSION: return L"3.0.0";
+    default: return L"";
+    }
+}
+
+// --- Other methods (no changes to content, just ensure they are defined) ---
 CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core)
-    : m_core_index(core_index), m_is_e_core(is_e_core), m_color(RGB(0, 128, 0)) {}
-const wchar_t* CCpuUsageItem::GetItemName() const { return m_item_name; }
-const wchar_t* CCpuUsageItem::GetItemId() const { return m_item_id; }
-const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
-const wchar_t* CCpuUsageItem::GetItemValueText() const { return L""; }
-const wchar_t* CCpuUsageItem::GetItemValueSampleText() const { return L""; }
-bool CCpuUsageItem::IsCustomDraw() const { return true; }
-int CCpuUsageItem::GetItemWidth() const { return 10; }
+    : m_core_index(core_index), m_is_e_core(is_e_core), m_color(RGB(0, 128, 0)) {
+    swprintf_s(m_item_name, L"CPU Core %d", m_core_index);
+    swprintf_s(m_item_id, L"cpu_core_%d", m_core_index);
+}
 void CCpuUsageItem::SetUsage(double usage) { m_usage = max(0.0, min(1.0, usage)); }
 void CCpuUsageItem::SetColor(COLORREF color) { m_color = color; }
 void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode) {
@@ -34,28 +71,7 @@ void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode) {
     SelectObject(hDC, hOldFont);
     DeleteObject(hFont);
 }
-void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) {
-    HDC dc = (HDC)hDC;
-    RECT rect = { x, y, x + w, y + h };
-    HBRUSH bg_brush = CreateSolidBrush(dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255));
-    FillRect(dc, &rect, bg_brush);
-    DeleteObject(bg_brush);
-    if (m_is_e_core) {
-        DrawECoreSymbol(dc, rect, dark_mode);
-    }
-    COLORREF bar_color = m_color;
-    int bar_height = static_cast<int>(h * m_usage);
-    if (bar_height > 0) {
-        RECT bar_rect = { x, y + (h - bar_height), x + w, y + h };
-        HBRUSH bar_brush = CreateSolidBrush(bar_color);
-        FillRect(dc, &bar_rect, bar_brush);
-        DeleteObject(bar_brush);
-    }
-}
-
-// --- SettingsDialogProc (No changes) ---
-INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
+INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
     static CCPUCoreBarsPlugin* p_plugin = nullptr;
     static std::vector<COLORREF> temp_colors;
     switch (message) {
@@ -88,9 +104,7 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPAR
     case WM_COMMAND: {
         switch (LOWORD(wParam)) {
         case IDC_CORE_LIST:
-            if (HIWORD(wParam) == LBN_SELCHANGE) {
-                InvalidateRect(GetDlgItem(hDlg, IDC_COLOR_PREVIEW), NULL, TRUE);
-            }
+            if (HIWORD(wParam) == LBN_SELCHANGE) { InvalidateRect(GetDlgItem(hDlg, IDC_COLOR_PREVIEW), NULL, TRUE); }
             break;
         case IDC_CHANGE_COLOR_BUTTON: {
             LRESULT selected_index = SendMessage(GetDlgItem(hDlg, IDC_CORE_LIST), LB_GETCURSEL, 0, 0);
@@ -124,8 +138,6 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPAR
     }
     return (INT_PTR)FALSE;
 }
-
-// --- CCPUCoreBarsPlugin implementation (No changes) ---
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance() { static CCPUCoreBarsPlugin instance; return instance; }
 std::wstring CCPUCoreBarsPlugin::GetSettingsPath() const {
     wchar_t path[MAX_PATH];
@@ -218,22 +230,6 @@ CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin() {
     if (m_query) PdhCloseQuery(m_query);
     for (auto item : m_items) delete item;
 }
-IPluginItem* CCPUCoreBarsPlugin::GetItem(int index) {
-    if (index >= 0 && static_cast<size_t>(index) < m_items.size()) return m_items[index];
-    return nullptr;
-}
-void CCPUCoreBarsPlugin::DataRequired() { UpdateCpuUsage(); }
-const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) {
-    switch (index) {
-    case TMI_NAME: return L"CPU核心使用率条形图";
-    case TMI_DESCRIPTION: return L"将每个CPU核心的使用率显示为独立的竖向条形图，并可自定义颜色。";
-    case TMI_AUTHOR: return L"Your Name";
-    case TMI_COPYRIGHT: return L"Copyright (C) 2025";
-    case TMI_URL: return L"";
-    case TMI_VERSION: L"2.3.0"; // Final working version
-    default: return L"";
-    }
-}
 void CCPUCoreBarsPlugin::UpdateCpuUsage() {
     if (!m_query) return;
     if (PdhCollectQueryData(m_query) == ERROR_SUCCESS) {
@@ -254,10 +250,6 @@ void CCPUCoreBarsPlugin::ShowSettingWindow(void* hParent) {
         (LPCWSTR)&CCPUCoreBarsPlugin::Instance, &h_dll);
     DialogBoxParamW(h_dll, MAKEINTRESOURCEW(IDD_SETTINGS), (HWND)hParent, SettingsDialogProc, (LPARAM)this);
 }
-
-// =================================================================
-// EXPORTED FUNCTIONS
-// =================================================================
 
 extern "C" __declspec(dllexport) ITMPlugin* __stdcall TMPluginGetInstance()
 {

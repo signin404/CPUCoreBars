@@ -1,10 +1,9 @@
-﻿// CPUCoreBars/CPUCoreBars.h
-#pragma once
+﻿#pragma once
+#include "PluginInterface.h"
 #include <windows.h>
 #include <vector>
 #include <string>
 #include <Pdh.h>
-#include "PluginInterface.h"
 
 class CCpuUsageItem : public IPluginItem
 {
@@ -12,21 +11,21 @@ public:
     CCpuUsageItem(int core_index, bool is_e_core);
     virtual ~CCpuUsageItem() = default;
 
-    const wchar_t* GetItemName() const override;
-    const wchar_t* GetItemId() const override;
-    const wchar_t* GetItemLableText() const override;
-    const wchar_t* GetItemValueText() const override;
-    const wchar_t* GetItemValueSampleText() const override;
-    bool IsCustomDraw() const override;
-    int GetItemWidth() const override;
-    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+    // FIX: Add __stdcall to all overrides
+    const wchar_t* __stdcall GetItemName() const override;
+    const wchar_t* __stdcall GetItemId() const override;
+    const wchar_t* __stdcall GetItemLableText() const override;
+    const wchar_t* __stdcall GetItemValueText() const override;
+    const wchar_t* __stdcall GetItemValueSampleText() const override;
+    bool __stdcall IsCustomDraw() const override;
+    int __stdcall GetItemWidth() const override;
+    void __stdcall DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
 
     void SetUsage(double usage);
     void SetColor(COLORREF color);
 
 private:
     void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
-
     int m_core_index;
     double m_usage = 0.0;
     wchar_t m_item_name[32];
@@ -40,14 +39,12 @@ class CCPUCoreBarsPlugin : public ITMPlugin
 public:
     static CCPUCoreBarsPlugin& Instance();
 
-    IPluginItem* GetItem(int index) override;
-    void DataRequired() override;
-    const wchar_t* GetInfo(PluginInfoIndex index) override;
+    // FIX: Add __stdcall to all overrides
+    IPluginItem* __stdcall GetItem(int index) override;
+    void __stdcall DataRequired() override;
+    const wchar_t* __stdcall GetInfo(PluginInfoIndex index) override;
 
-    // FIX: 移除 'override'，因为它不重写任何基类方法
     void ShowSettingWindow(void* hParent);
-
-    // --- 公开成员，供对话框访问 ---
     std::vector<COLORREF> m_core_colors;
     void SaveSettings();
 
