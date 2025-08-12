@@ -22,7 +22,7 @@ const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueSampleText() const { return L""; }
 bool CCpuUsageItem::IsCustomDraw() const { return true; }
-int CCpuUsageItem::GetItemWidth() const { return 10; }
+int CCpuUsageItem::GetItemWidth() const { return 8; }
 
 void CCpuUsageItem::SetUsage(double usage)
 {
@@ -44,7 +44,7 @@ void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
 
     // 4. 创建一个合适的字体
     // 字体大小可以根据需要调整
-    HFONT hFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
+    HFONT hFont = CreateFontW(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
                               DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
 
@@ -195,7 +195,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index)
     {
-    case TMI_NAME: return L"CPU Core Usage Bars";
+    case TMI_NAME: return L"CPU条形图";
     case TMI_DESCRIPTION: return L"Displays each CPU core usage as a vertical bar with P/E core detection.";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
