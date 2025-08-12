@@ -22,7 +22,7 @@ const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueSampleText() const { return L""; }
 bool CCpuUsageItem::IsCustomDraw() const { return true; }
-int CCpuUsageItem::GetItemWidth() const { return 8; }
+int CCpuUsageItem::GetItemWidth() const { return 10; }
 
 void CCpuUsageItem::SetUsage(double usage)
 {
