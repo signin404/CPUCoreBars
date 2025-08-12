@@ -22,7 +22,7 @@ const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueSampleText() const { return L""; }
 bool CCpuUsageItem::IsCustomDraw() const { return true; }
-int CCpuUsageItem::GetItemWidth() const { return 8; }
+int CCpuUsageItem::GetItemWidth() const { return 10; }
 
 void CCpuUsageItem::SetUsage(double usage)
 {
@@ -195,7 +195,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index)
     {
-    case TMI_NAME: return L"CPU条形图";
+    case TMI_NAME: return L"CPU Core Usage Bars";
     case TMI_DESCRIPTION: return L"Displays each CPU core usage as a vertical bar with P/E core detection.";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
