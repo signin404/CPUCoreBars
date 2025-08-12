@@ -1,3 +1,5 @@
+// CPUCoreBars/CPUCoreBars.vcxproj
+
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
@@ -136,6 +138,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CPUCoreBars.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="CPUCoreBars.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
