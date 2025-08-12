@@ -22,20 +22,23 @@ const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueText() const { return L""; }
 const wchar_t* CCpuUsageItem::GetItemValueSampleText() const { return L""; }
 bool CCpuUsageItem::IsCustomDraw() const { return true; }
-int CCpuUsageItem::GetItemWidth() const { return 8; }
+int CCpuUsageItem::GetItemWidth() const { return 10; }
 
 void CCpuUsageItem::SetUsage(double usage)
 {
     m_usage = max(0.0, min(1.0, usage));
 }
 
+// UPDATED: DrawECoreSymbol 函数更新图标颜色为高对比度
 void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
 {
-    COLORREF icon_color = dark_mode ? RGB(80, 80, 80) : RGB(220, 220, 220);
+    // 1. 设置符号颜色为高对比度的黑/白
+    COLORREF icon_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
     SetTextColor(hDC, icon_color);
+
     SetBkMode(hDC, TRANSPARENT);
     const wchar_t* symbol = L"\u26B2";
-    HFONT hFont = CreateFontW(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
+    HFONT hFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
                               DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
     HGDIOBJ hOldFont = SelectObject(hDC, hFont);
@@ -44,7 +47,7 @@ void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
     DeleteObject(hFont);
 }
 
-// UPDATED: DrawItem 函数实现新的颜色逻辑
+// UPDATED: DrawItem 函数调整绘制顺序
 void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
@@ -55,13 +58,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
     FillRect(dc, &rect, bg_brush);
     DeleteObject(bg_brush);
 
-    // 2. 如果是 E-Core，绘制符号
-    if (m_is_e_core)
-    {
-        DrawECoreSymbol(dc, rect, dark_mode);
-    }
-
-    // 3. 根据核心索引选择 *基础* 颜色
+    // 2. 根据核心索引和使用率选择颜色
     COLORREF bar_color;
     if (m_core_index >= 12 && m_core_index <= 19)
     {
@@ -76,18 +73,16 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
         bar_color = RGB(118, 202, 83);
     }
 
-    // 4. *** 新增逻辑: 根据使用率覆盖颜色 ***
-    if (m_usage >= 0.8) // 80% 及以上
+    if (m_usage >= 0.8)
     {
-        bar_color = RGB(217, 66, 53); // 高负载红色
+        bar_color = RGB(217, 66, 53);
     }
-    else if (m_usage >= 0.5) // 50% 到 80%
+    else if (m_usage >= 0.5)
     {
-        bar_color = RGB(246, 182, 78); // 中负载黄色
+        bar_color = RGB(246, 182, 78);
     }
-    // 如果低于50%，则使用第3步中设置的基础颜色
 
-    // 5. 绘制使用率条形图
+    // 3. 绘制使用率条形图 (在绘制图标之前)
     int bar_height = static_cast<int>(h * m_usage);
     if (bar_height > 0)
     {
@@ -95,6 +90,12 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
         HBRUSH bar_brush = CreateSolidBrush(bar_color);
         FillRect(dc, &bar_rect, bar_brush);
         DeleteObject(bar_brush);
+    }
+
+    // 4. *** 新增逻辑: 最后绘制图标，确保它在最顶层 ***
+    if (m_is_e_core)
+    {
+        DrawECoreSymbol(dc, rect, dark_mode);
     }
 }
 
@@ -197,7 +198,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"1.4.0"; // 版本号+1
+    case TMI_VERSION: return L"1.5.0"; // 版本号+1
     default: return L"";
     }
 }
