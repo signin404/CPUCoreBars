@@ -5,10 +5,46 @@
 
 #pragma comment(lib, "pdh.lib")
 
-// CCpuUsageItem 的声明和实现与上一版完全相同，此处省略
-// ... (将上一版完整的 CCpuUsageItem 声明和实现代码粘贴到这里)
-class CCpuUsageItem : public IPluginItem { public: CCpuUsageItem(int core_index, bool is_e_core); virtual ~CCpuUsageItem() = default; const wchar_t* GetItemName() const override; const wchar_t* GetItemId() const override; const wchar_t* GetItemLableText() const override; const wchar_t* GetItemValueText() const override; const wchar_t* GetItemValueSampleText() const override; bool IsCustomDraw() const override; int GetItemWidth() const override; void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override; void SetUsage(double usage); void SetIsECore(bool is_e_core); private: void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode); int m_core_index; double m_usage = 0.0; wchar_t m_item_name[32]; wchar_t m_item_id[32]; bool m_is_e_core; };
-CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) : m_core_index(core_index), m_is_e_core(is_e_core) { swprintf_s(m_item_name, L"CPU Core %d", m_core_index); swprintf_s(m_item_id, L"cpu_core_%d", m_core_index); }
+// =================================================================
+// CCpuUsageItem class implementation
+// (This class is used by the plugin, so its full implementation is here)
+// =================================================================
+
+class CCpuUsageItem : public IPluginItem
+{
+public:
+    CCpuUsageItem(int core_index, bool is_e_core);
+    virtual ~CCpuUsageItem() = default;
+
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+
+    void SetUsage(double usage);
+    void SetIsECore(bool is_e_core);
+
+private:
+    void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
+
+    int m_core_index;
+    double m_usage = 0.0;
+    wchar_t m_item_name[32];
+    wchar_t m_item_id[32];
+    bool m_is_e_core;
+};
+
+CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) 
+    : m_core_index(core_index), m_is_e_core(is_e_core)
+{
+    swprintf_s(m_item_name, L"CPU Core %d", m_core_index);
+    swprintf_s(m_item_id, L"cpu_core_%d", m_core_index);
+}
+
 const wchar_t* CCpuUsageItem::GetItemName() const { return m_item_name; }
 const wchar_t* CCpuUsageItem::GetItemId() const { return m_item_id; }
 const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
@@ -18,12 +54,61 @@ bool CCpuUsageItem::IsCustomDraw() const { return true; }
 int CCpuUsageItem::GetItemWidth() const { return 10; }
 void CCpuUsageItem::SetUsage(double usage) { m_usage = max(0.0, min(1.0, usage)); }
 void CCpuUsageItem::SetIsECore(bool is_e_core) { m_is_e_core = is_e_core; }
-void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode) { COLORREF icon_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0); SetTextColor(hDC, icon_color); SetBkMode(hDC, TRANSPARENT); const wchar_t* symbol = L"\u26B2"; HFONT hFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol"); HGDIOBJ hOldFont = SelectObject(hDC, hFont); DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE); SelectObject(hDC, hOldFont); DeleteObject(hFont); }
-void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) { HDC dc = (HDC)hDC; RECT rect = { x, y, x + w, y + h }; HBRUSH bg_brush = CreateSolidBrush(dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255)); FillRect(dc, &rect, bg_brush); DeleteObject(bg_brush); COLORREF bar_color; if (m_core_index >= 12 && m_core_index <= 19) { bar_color = RGB(217, 66, 53); } else if (m_core_index % 2 == 1) { bar_color = RGB(38, 160, 218); } else { bar_color = RGB(118, 202, 83); } if (m_usage >= 0.8) { bar_color = RGB(217, 66, 53); } else if (m_usage >= 0.5) { bar_color = RGB(246, 182, 78); } int bar_height = static_cast<int>(h * m_usage); if (bar_height > 0) { RECT bar_rect = { x, y + (h - bar_height), x + w, y + h }; HBRUSH bar_brush = CreateSolidBrush(bar_color); FillRect(dc, &bar_rect, bar_brush); DeleteObject(bar_brush); } if (m_is_e_core) { DrawECoreSymbol(dc, rect, dark_mode); } }
+
+void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
+{
+    COLORREF icon_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
+    SetTextColor(hDC, icon_color);
+    SetBkMode(hDC, TRANSPARENT);
+    const wchar_t* symbol = L"\u26B2";
+    HFONT hFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
+                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+                              DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
+    HGDIOBJ hOldFont = SelectObject(hDC, hFont);
+    DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(hDC, hOldFont);
+    DeleteObject(hFont);
+}
+
+void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
+{
+    HDC dc = (HDC)hDC;
+    RECT rect = { x, y, x + w, y + h };
+    HBRUSH bg_brush = CreateSolidBrush(dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255));
+    FillRect(dc, &rect, bg_brush);
+    DeleteObject(bg_brush);
+
+    COLORREF bar_color;
+    if (m_core_index >= 12 && m_core_index <= 19) {
+        bar_color = RGB(217, 66, 53);
+    } else if (m_core_index % 2 == 1) {
+        bar_color = RGB(38, 160, 218);
+    } else {
+        bar_color = RGB(118, 202, 83);
+    }
+
+    if (m_usage >= 0.8) {
+        bar_color = RGB(217, 66, 53);
+    } else if (m_usage >= 0.5) {
+        bar_color = RGB(246, 182, 78);
+    }
+
+    int bar_height = static_cast<int>(h * m_usage);
+    if (bar_height > 0) {
+        RECT bar_rect = { x, y + (h - bar_height), x + w, y + h };
+        HBRUSH bar_brush = CreateSolidBrush(bar_color);
+        FillRect(dc, &bar_rect, bar_brush);
+        DeleteObject(bar_brush);
+    }
+
+    if (m_is_e_core) {
+        DrawECoreSymbol(dc, rect, dark_mode);
+    }
+}
 
 
 // =================================================================
-// CCPUCoreBarsPlugin implementation (最终修复版)
+// CCPUCoreBarsPlugin implementation
 // =================================================================
 
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
