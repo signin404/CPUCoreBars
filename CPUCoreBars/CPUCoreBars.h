@@ -4,6 +4,10 @@
 #include <vector>
 #include <Pdh.h>
 #include "PluginInterface.h"
+// --- 新增多线程头文件 ---
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 class CCpuUsageItem : public IPluginItem
 {
@@ -23,9 +27,7 @@ public:
     void SetUsage(double usage);
 
 private:
-    // *** 这是需要修正的行 ***
-    // 将手绘图标的辅助函数重命名，以匹配 .cpp 文件中的实现
-    void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode); // <--- RENAMED from DrawLeafIcon
+    void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
 
     int m_core_index;
     double m_usage = 0.0;
@@ -49,14 +51,20 @@ private:
     CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
     CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
 
-    void UpdateCpuUsage();
     void DetectCoreTypes();
+    void WorkerThread(); // <--- 新增：后台工作线程的函数
 
     std::vector<CCpuUsageItem*> m_items;
     int m_num_cores;
 
+    // --- PDH 相关 ---
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
-
     std::vector<BYTE> m_core_efficiency;
+
+    // --- 新增的线程管理成员 ---
+    std::thread m_worker_thread;
+    std::atomic<bool> m_is_running;
+    std::mutex m_data_mutex;
+    std::vector<double> m_cpu_usage_buffer; // 后台线程写入，主线程读取的缓冲区
 };
