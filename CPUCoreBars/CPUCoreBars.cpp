@@ -29,36 +29,22 @@ void CCpuUsageItem::SetUsage(double usage)
     m_usage = max(0.0, min(1.0, usage));
 }
 
-// UPDATED: 将手绘图标替换为绘制 Unicode 符号
 void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
 {
-    // 1. 设置符号颜色
     COLORREF icon_color = dark_mode ? RGB(80, 80, 80) : RGB(220, 220, 220);
     SetTextColor(hDC, icon_color);
-
-    // 2. 设置背景为透明，这样就不会在符号周围绘制方框
     SetBkMode(hDC, TRANSPARENT);
-
-    // 3. 定义要绘制的符号
-    const wchar_t* symbol = L"\u26B2"; // Unicode for ⚲ (NEUTER)
-
-    // 4. 创建一个合适的字体
-    // 字体大小可以根据需要调整
+    const wchar_t* symbol = L"\u26B2";
     HFONT hFont = CreateFontW(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
                               DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
-
     HGDIOBJ hOldFont = SelectObject(hDC, hFont);
-
-    // 5. 绘制文本，并使其在矩形区域内水平和垂直居中
     DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-    // 6. 清理资源
     SelectObject(hDC, hOldFont);
     DeleteObject(hFont);
 }
 
-// UPDATED: DrawItem 函数更新颜色和函数调用
+// UPDATED: DrawItem 函数实现新的颜色逻辑
 void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
@@ -72,25 +58,36 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
     // 2. 如果是 E-Core，绘制符号
     if (m_is_e_core)
     {
-        DrawECoreSymbol(dc, rect, dark_mode); // <-- 调用新函数
+        DrawECoreSymbol(dc, rect, dark_mode);
     }
 
-    // 3. 根据核心索引选择条形图颜色 (使用新的 RGB 值)
+    // 3. 根据核心索引选择 *基础* 颜色
     COLORREF bar_color;
     if (m_core_index >= 12 && m_core_index <= 19)
     {
-        bar_color = RGB(217, 66, 53); // R217 G66 B53
+        bar_color = RGB(217, 66, 53);
     }
-    else if (m_core_index % 2 == 1) // 奇数核心 1, 3, 5...
+    else if (m_core_index % 2 == 1)
     {
-        bar_color = RGB(38, 160, 218); // R38 G160 B218
+        bar_color = RGB(38, 160, 218);
     }
-    else // 偶数核心 0, 2, 4...
+    else
     {
-        bar_color = RGB(118, 202, 83); // R118 G202 B83
+        bar_color = RGB(118, 202, 83);
     }
 
-    // 4. 绘制使用率条形图
+    // 4. *** 新增逻辑: 根据使用率覆盖颜色 ***
+    if (m_usage >= 0.8) // 80% 及以上
+    {
+        bar_color = RGB(217, 66, 53); // 高负载红色
+    }
+    else if (m_usage >= 0.5) // 50% 到 80%
+    {
+        bar_color = RGB(246, 182, 78); // 中负载黄色
+    }
+    // 如果低于50%，则使用第3步中设置的基础颜色
+
+    // 5. 绘制使用率条形图
     int bar_height = static_cast<int>(h * m_usage);
     if (bar_height > 0)
     {
@@ -200,7 +197,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"1.3.0"; // 版本号+1
+    case TMI_VERSION: return L"1.4.0"; // 版本号+1
     default: return L"";
     }
 }
