@@ -2,7 +2,7 @@
 #pragma once
 #include <windows.h>
 #include <vector>
-#include <string>       // <--- FIX: 包含 <string> 以使用 std::wstring
+#include <string>
 #include <Pdh.h>
 #include "PluginInterface.h"
 
@@ -43,11 +43,13 @@ public:
     IPluginItem* GetItem(int index) override;
     void DataRequired() override;
     const wchar_t* GetInfo(PluginInfoIndex index) override;
-    void ShowSettingWindow(void* hParent) override;
+
+    // FIX: 移除 'override'，因为它不重写任何基类方法
+    void ShowSettingWindow(void* hParent);
 
     // --- 公开成员，供对话框访问 ---
     std::vector<COLORREF> m_core_colors;
-    void SaveSettings(); // <--- FIX: 移到 public，以便对话框可以调用
+    void SaveSettings();
 
 private:
     CCPUCoreBarsPlugin();

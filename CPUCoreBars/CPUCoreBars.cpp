@@ -52,16 +52,13 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
     }
 }
 
-// 对话框过程函数 (DialogProc)
+// 对话框过程函数 (DialogProc) (无改动)
 INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     static CCPUCoreBarsPlugin* p_plugin = nullptr;
     static std::vector<COLORREF> temp_colors;
-
-    switch (message)
-    {
-    case WM_INITDIALOG:
-    {
+    switch (message) {
+    case WM_INITDIALOG: {
         p_plugin = (CCPUCoreBarsPlugin*)lParam;
         temp_colors = p_plugin->m_core_colors;
         HWND h_list = GetDlgItem(hDlg, IDC_CORE_LIST);
@@ -74,11 +71,9 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPAR
         PostMessage(hDlg, WM_COMMAND, MAKEWPARAM(IDC_CORE_LIST, LBN_SELCHANGE), (LPARAM)h_list);
         return (INT_PTR)TRUE;
     }
-    case WM_DRAWITEM:
-    {
+    case WM_DRAWITEM: {
         if (wParam == IDC_COLOR_PREVIEW) {
             LPDRAWITEMSTRUCT p_dis = (LPDRAWITEMSTRUCT)lParam;
-            // FIX: 使用 LRESULT 修复 C4244 警告
             LRESULT selected_index = SendMessage(GetDlgItem(hDlg, IDC_CORE_LIST), LB_GETCURSEL, 0, 0);
             if (selected_index != LB_ERR) {
                 HBRUSH brush = CreateSolidBrush(temp_colors[selected_index]);
@@ -89,18 +84,14 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPAR
         }
         break;
     }
-    case WM_COMMAND:
-    {
-        switch (LOWORD(wParam))
-        {
+    case WM_COMMAND: {
+        switch (LOWORD(wParam)) {
         case IDC_CORE_LIST:
             if (HIWORD(wParam) == LBN_SELCHANGE) {
                 InvalidateRect(GetDlgItem(hDlg, IDC_COLOR_PREVIEW), NULL, TRUE);
             }
             break;
-        case IDC_CHANGE_COLOR_BUTTON:
-        {
-            // FIX: 使用 LRESULT 修复 C4244 警告
+        case IDC_CHANGE_COLOR_BUTTON: {
             LRESULT selected_index = SendMessage(GetDlgItem(hDlg, IDC_CORE_LIST), LB_GETCURSEL, 0, 0);
             if (selected_index != LB_ERR) {
                 CHOOSECOLOR cc;
@@ -238,7 +229,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) {
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"2.0.1";
+    case TMI_VERSION: return L"2.0.2";
     default: return L"";
     }
 }
@@ -262,4 +253,16 @@ void CCPUCoreBarsPlugin::ShowSettingWindow(void* hParent) {
         (LPCWSTR)&CCPUCoreBarsPlugin::Instance, &h_dll);
     DialogBoxParamW(h_dll, MAKEINTRESOURCEW(IDD_SETTINGS), (HWND)hParent, SettingsDialogProc, (LPARAM)this);
 }
-extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance() { return &CCPUCoreBarsPlugin::Instance(); }
+
+// 导出主插件实例
+extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance()
+{
+    return &CCPUCoreBarsPlugin::Instance();
+}
+
+// FIX: 导出设置窗口函数，供TrafficMonitor调用
+extern "C" __declspec(dllexport) void TMPluginShowSettingWindow(void* hParent)
+{
+    // 调用我们单例中的方法来显示窗口
+    CCPUCoreBarsPlugin::Instance().ShowSettingWindow(hParent);
+}
