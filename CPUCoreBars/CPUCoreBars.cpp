@@ -1,4 +1,4 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp
+// CPUCoreBars/CPUCoreBars.cpp
 #include "CPUCoreBars.h"
 #include "resource.h"
 #include <string>
@@ -10,7 +10,7 @@
 
 #pragma comment(lib, "pdh.lib")
 
-// CCpuUsageItem implementation (无改动)
+// --- CCpuUsageItem implementation (No changes) ---
 CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core)
     : m_core_index(core_index), m_is_e_core(is_e_core), m_color(RGB(0, 128, 0)) {}
 const wchar_t* CCpuUsageItem::GetItemName() const { return m_item_name; }
@@ -52,7 +52,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
     }
 }
 
-// 对话框过程函数 (DialogProc) (无改动)
+// --- SettingsDialogProc (No changes) ---
 INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     static CCPUCoreBarsPlugin* p_plugin = nullptr;
@@ -124,7 +124,7 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPAR
     return (INT_PTR)FALSE;
 }
 
-// CCPUCoreBarsPlugin implementation (无改动)
+// --- CCPUCoreBarsPlugin implementation (No changes) ---
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance() { static CCPUCoreBarsPlugin instance; return instance; }
 std::wstring CCPUCoreBarsPlugin::GetSettingsPath() const {
     wchar_t path[MAX_PATH];
@@ -224,12 +224,12 @@ IPluginItem* CCPUCoreBarsPlugin::GetItem(int index) {
 void CCPUCoreBarsPlugin::DataRequired() { UpdateCpuUsage(); }
 const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) {
     switch (index) {
-    case TMI_NAME: return L"CPU Core Usage Bars";
-    case TMI_DESCRIPTION: return L"Displays each CPU core usage as a vertical bar with P/E core detection and custom colors.";
+    case TMI_NAME: return L"CPU核心使用率条形图"; // <-- 使用中文
+    case TMI_DESCRIPTION: return L"将每个CPU核心的使用率显示为独立的竖向条形图，并可自定义颜色。";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"2.0.2";
+    case TMI_VERSION: return L"2.1.0";
     default: return L"";
     }
 }
@@ -254,15 +254,18 @@ void CCPUCoreBarsPlugin::ShowSettingWindow(void* hParent) {
     DialogBoxParamW(h_dll, MAKEINTRESOURCEW(IDD_SETTINGS), (HWND)hParent, SettingsDialogProc, (LPARAM)this);
 }
 
-// 导出主插件实例
+// =================================================================
+// EXPORTED FUNCTIONS
+// =================================================================
+
+// FIX: 添加 extern "C" 来防止C++名字修饰
 extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance()
 {
     return &CCPUCoreBarsPlugin::Instance();
 }
 
-// FIX: 导出设置窗口函数，供TrafficMonitor调用
+// FIX: 添加 extern "C" 来防止C++名字修饰
 extern "C" __declspec(dllexport) void TMPluginShowSettingWindow(void* hParent)
 {
-    // 调用我们单例中的方法来显示窗口
     CCPUCoreBarsPlugin::Instance().ShowSettingWindow(hParent);
 }
