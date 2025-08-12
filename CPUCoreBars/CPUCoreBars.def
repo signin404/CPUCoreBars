@@ -1,0 +1,8 @@
+﻿; CPUCoreBars.def
+; Declares the module parameters for the DLL.
+
+LIBRARY      "CPUCoreBars"
+
+EXPORTS
+    TMPluginGetInstance         @1
+    TMPluginShowSettingWindow   @2

@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.rc
+﻿// CPUCoreBars/CPUCoreBars.rc
 
 #include <windows.h>
 #include "resource.h"

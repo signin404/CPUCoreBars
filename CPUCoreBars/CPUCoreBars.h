@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.h
+﻿// CPUCoreBars/CPUCoreBars.h
 #pragma once
 #include <windows.h>
 #include <vector>

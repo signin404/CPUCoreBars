@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp
+﻿// CPUCoreBars/CPUCoreBars.cpp
 #include "CPUCoreBars.h"
 #include "resource.h"
 #include <string>

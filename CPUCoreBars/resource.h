@@ -1,4 +1,4 @@
-// CPUCoreBars/resource.h
+﻿// CPUCoreBars/resource.h
 
 #define IDD_SETTINGS                    101
 #define IDC_CORE_LIST                   1001
