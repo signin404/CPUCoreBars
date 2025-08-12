@@ -29,61 +29,36 @@ void CCpuUsageItem::SetUsage(double usage)
     m_usage = max(0.0, min(1.0, usage));
 }
 
-// --- NEW ---
-// 美化后的树叶图标绘制函数
-void CCpuUsageItem::DrawLeafIcon(HDC hDC, const RECT& rect, bool dark_mode)
+// UPDATED: 将手绘图标替换为绘制 Unicode 符号
+void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
 {
-    // 选择一个不显眼的颜色作为填充色
+    // 1. 设置符号颜色
     COLORREF icon_color = dark_mode ? RGB(80, 80, 80) : RGB(220, 220, 220);
-    HBRUSH hBrush = CreateSolidBrush(icon_color);
-    HBRUSH hOldBrush = (HBRUSH)SelectObject(hDC, hBrush);
+    SetTextColor(hDC, icon_color);
 
-    // 为了避免描边，我们使用一个空画笔
-    HPEN hPen = (HPEN)GetStockObject(NULL_PEN);
-    HPEN hOldPen = (HPEN)SelectObject(hDC, hPen);
+    // 2. 设置背景为透明，这样就不会在符号周围绘制方框
+    SetBkMode(hDC, TRANSPARENT);
 
-    // 将图标绘制在条形图中央
-    int center_x = rect.left + (rect.right - rect.left) / 2;
-    int center_y = rect.top + (rect.bottom - rect.top) / 2;
-    
-    // 定义叶子形状的控制点，使其更像任务管理器的风格
-    // 我们将使用两条三阶贝塞尔曲线来构成叶子的左右两半
-    const int leaf_h = 4; // 叶子半高
-    const int leaf_w = 4; // 叶子半宽
+    // 3. 定义要绘制的符号
+    const wchar_t* symbol = L"\u26B2"; // Unicode for ⚲ (NEUTER)
 
-    POINT bottom_tip = { center_x, center_y + leaf_h };
-    POINT top_tip    = { center_x, center_y - leaf_h };
+    // 4. 创建一个合适的字体
+    // 字体大小可以根据需要调整
+    HFONT hFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
+                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+                              DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
 
-    // 左半边叶子的控制点
-    POINT left_curve[3] = {
-        { center_x - leaf_w, center_y + leaf_h / 2 },
-        { center_x - leaf_w, center_y - leaf_h / 2 },
-        top_tip
-    };
+    HGDIOBJ hOldFont = SelectObject(hDC, hFont);
 
-    // 右半边叶子的控制点
-    POINT right_curve[3] = {
-        { center_x + leaf_w, center_y - leaf_h / 2 },
-        { center_x + leaf_w, center_y + leaf_h / 2 },
-        bottom_tip
-    };
+    // 5. 绘制文本，并使其在矩形区域内水平和垂直居中
+    DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
-    // 使用 GDI 路径来绘制并填充形状
-    BeginPath(hDC);
-    MoveToEx(hDC, bottom_tip.x, bottom_tip.y, NULL);
-    PolyBezierTo(hDC, left_curve, 3);  // 绘制左半边
-    PolyBezierTo(hDC, right_curve, 3); // 绘制右半边，闭合路径
-    EndPath(hDC);
-
-    FillPath(hDC); // 填充路径
-
-    // 恢复并删除 GDI 对象
-    SelectObject(hDC, hOldPen);
-    SelectObject(hDC, hOldBrush);
-    DeleteObject(hBrush);
+    // 6. 清理资源
+    SelectObject(hDC, hOldFont);
+    DeleteObject(hFont);
 }
 
-// DrawItem 函数更新了颜色定义
+// UPDATED: DrawItem 函数更新颜色和函数调用
 void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
@@ -94,26 +69,25 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
     FillRect(dc, &rect, bg_brush);
     DeleteObject(bg_brush);
 
-    // 2. 如果是 E-Core，绘制美化后的树叶图标
+    // 2. 如果是 E-Core，绘制符号
     if (m_is_e_core)
     {
-        DrawLeafIcon(dc, rect, dark_mode);
+        DrawECoreSymbol(dc, rect, dark_mode); // <-- 调用新函数
     }
 
-    // --- UPDATED ---
-    // 3. 根据核心索引选择新的条形图颜色
+    // 3. 根据核心索引选择条形图颜色 (使用新的 RGB 值)
     COLORREF bar_color;
     if (m_core_index >= 12 && m_core_index <= 19)
     {
-        bar_color = RGB(217, 66, 53);
+        bar_color = RGB(217, 66, 53); // R217 G66 B53
     }
     else if (m_core_index % 2 == 1) // 奇数核心 1, 3, 5...
     {
-        bar_color = RGB(38, 160, 218);
+        bar_color = RGB(38, 160, 218); // R38 G160 B218
     }
     else // 偶数核心 0, 2, 4...
     {
-        bar_color = RGB(118, 202, 83);
+        bar_color = RGB(118, 202, 83); // R118 G202 B83
     }
 
     // 4. 绘制使用率条形图
@@ -129,8 +103,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 
 
 // =================================================================
-// CCPUCoreBarsPlugin implementation
-// (这部分代码无需修改，保持原样即可)
+// CCPUCoreBarsPlugin implementation (这部分无需修改)
 // =================================================================
 
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
@@ -145,9 +118,11 @@ void CCPUCoreBarsPlugin::DetectCoreTypes()
     DWORD length = 0;
     GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length);
     if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) return;
+
     std::vector<char> buffer(length);
     PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX proc_info = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buffer.data();
     if (!GetLogicalProcessorInformationEx(RelationProcessorCore, proc_info, &length)) return;
+
     char* ptr = buffer.data();
     while (ptr < buffer.data() + length)
     {
