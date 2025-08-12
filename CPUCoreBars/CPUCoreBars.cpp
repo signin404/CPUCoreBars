@@ -29,25 +29,55 @@ void CCpuUsageItem::SetUsage(double usage)
     m_usage = max(0.0, min(1.0, usage));
 }
 
-// UPDATED: DrawECoreSymbol 函数更新图标颜色为高对比度
-void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
+// UPDATED: 新的 DrawLeafIcon 函数 - 绘制树叶图标
+void CCpuUsageItem::DrawLeafIcon(HDC hDC, const RECT& rect, bool dark_mode)
 {
-    // 1. 设置符号颜色为高对比度的黑/白
-    COLORREF icon_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
-    SetTextColor(hDC, icon_color);
-
-    SetBkMode(hDC, TRANSPARENT);
-    const wchar_t* symbol = L"\u26B2";
-    HFONT hFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
-                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
-                              DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
-    HGDIOBJ hOldFont = SelectObject(hDC, hFont);
-    DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    SelectObject(hDC, hOldFont);
-    DeleteObject(hFont);
+    // 计算图标绘制区域 - 在矩形顶部中央
+    int icon_size = min(rect.right - rect.left, 8); // 限制图标大小
+    int center_x = (rect.left + rect.right) / 2;
+    int top_y = rect.top + 2; // 距离顶部2像素
+    
+    // 定义树叶的形状点（相对于中心点）
+    POINT leaf_points[] = {
+        {center_x, top_y},                    // 顶点
+        {center_x - icon_size/3, top_y + icon_size/3},   // 左上
+        {center_x - icon_size/2, top_y + icon_size/2},   // 左中
+        {center_x - icon_size/4, top_y + icon_size*2/3}, // 左下
+        {center_x, top_y + icon_size},                    // 底部中心
+        {center_x + icon_size/4, top_y + icon_size*2/3}, // 右下
+        {center_x + icon_size/2, top_y + icon_size/2},   // 右中
+        {center_x + icon_size/3, top_y + icon_size/3},   // 右上
+    };
+    
+    // 设置绘制颜色 - 使用绿色调表示效率核心
+    COLORREF leaf_color = dark_mode ? RGB(120, 200, 80) : RGB(60, 150, 40);
+    COLORREF border_color = dark_mode ? RGB(80, 160, 40) : RGB(40, 100, 20);
+    
+    // 创建画刷和画笔
+    HBRUSH leaf_brush = CreateSolidBrush(leaf_color);
+    HPEN leaf_pen = CreatePen(PS_SOLID, 1, border_color);
+    
+    // 选择画刷和画笔
+    HGDIOBJ old_brush = SelectObject(hDC, leaf_brush);
+    HGDIOBJ old_pen = SelectObject(hDC, leaf_pen);
+    
+    // 绘制树叶形状
+    Polygon(hDC, leaf_points, sizeof(leaf_points) / sizeof(POINT));
+    
+    // 绘制叶脉（中央线）
+    MoveToEx(hDC, center_x, top_y + icon_size/4, NULL);
+    LineTo(hDC, center_x, top_y + icon_size*3/4);
+    
+    // 恢复原始对象
+    SelectObject(hDC, old_brush);
+    SelectObject(hDC, old_pen);
+    
+    // 清理资源
+    DeleteObject(leaf_brush);
+    DeleteObject(leaf_pen);
 }
 
-// UPDATED: DrawItem 函数调整绘制顺序
+// UPDATED: DrawItem 函数调整为使用新的树叶图标
 void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
@@ -92,10 +122,10 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
         DeleteObject(bar_brush);
     }
 
-    // 4. *** 新增逻辑: 最后绘制图标，确保它在最顶层 ***
+    // 4. *** 绘制树叶图标，确保它在最顶层 ***
     if (m_is_e_core)
     {
-        DrawECoreSymbol(dc, rect, dark_mode);
+        DrawLeafIcon(dc, rect, dark_mode);
     }
 }
 
@@ -198,7 +228,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"1.5.0"; // 版本号+1
+    case TMI_VERSION: return L"1.6.0"; // 版本号+1
     default: return L"";
     }
 }
