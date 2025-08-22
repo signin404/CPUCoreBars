@@ -67,7 +67,7 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
 
         HFONT hFont = CreateFontW(-10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei");
         HGDIOBJ hOldFont = SelectObject(dc, hFont);
-        SetTextColor(dc, RGB(178, 139, 247));
+        SetTextColor(dc, RGB(30, 30, 30));
         SetBkMode(dc, TRANSPARENT);
         DrawTextW(dc, p_state_text, -1, &icon_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         SelectObject(dc, hOldFont);
