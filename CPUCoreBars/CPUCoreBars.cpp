@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp
+﻿// CPUCoreBars/CPUCoreBars.cpp
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -73,12 +73,12 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
         strFormat.SetLineAlignment(StringAlignmentCenter);
         
         GraphicsPath path;
-        path.AddString(p_state_text, -1, &fontFamily, FontStyleBold, 12, iconRectF, &strFormat);
+        path.AddString(p_state_text, -1, &fontFamily, FontStyleBold, 11, iconRectF, &strFormat);
 
         Pen blackPen(Color(0, 0, 0), 1.5f);
         graphics.DrawPath(&blackPen, &path);
 
-        SolidBrush whiteBrush(Color(255, 255, 255));
+        SolidBrush whiteBrush(Color(178, 139, 247));
         graphics.FillPath(&whiteBrush, &path);
     }
 
