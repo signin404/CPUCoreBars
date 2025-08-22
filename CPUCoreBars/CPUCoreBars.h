@@ -4,17 +4,16 @@
 #include <vector>
 #include <Pdh.h>
 #include "PluginInterface.h"
-#include "nvml.h" // <--- 包含 NVML 头文件
+#include "nvml.h"
 
 // =================================================================
-// CPU Core Item (no changes needed here)
+// CPU Core Item (no changes)
 // =================================================================
 class CCpuUsageItem : public IPluginItem
 {
 public:
     CCpuUsageItem(int core_index, bool is_e_core);
     virtual ~CCpuUsageItem() = default;
-    // ... (all existing functions remain the same)
     const wchar_t* GetItemName() const override;
     const wchar_t* GetItemId() const override;
     const wchar_t* GetItemLableText() const override;
@@ -35,7 +34,7 @@ private:
 
 
 // =================================================================
-// NEW: NVIDIA GPU Limit Reason Item
+// UPDATED: NVIDIA GPU Limit Reason Item
 // =================================================================
 class CNvidiaLimitReasonItem : public IPluginItem
 {
@@ -48,6 +47,8 @@ public:
     const wchar_t* GetItemLableText() const override;
     const wchar_t* GetItemValueText() const override;
     const wchar_t* GetItemValueSampleText() const override;
+
+    // --- Switch to Custom Draw ---
     bool IsCustomDraw() const override;
     int GetItemWidth() const override;
     void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
@@ -56,52 +57,39 @@ public:
 
 private:
     wchar_t m_value_text[128];
+    int m_width = 100; // <--- Add member to store calculated width
 };
 
 
 // =================================================================
-// Main Plugin Class (updated for NVML)
+// Main Plugin Class (no changes)
 // =================================================================
 class CCPUCoreBarsPlugin : public ITMPlugin
 {
 public:
     static CCPUCoreBarsPlugin& Instance();
-
     IPluginItem* GetItem(int index) override;
     void DataRequired() override;
     const wchar_t* GetInfo(PluginInfoIndex index) override;
-
 private:
     CCPUCoreBarsPlugin();
     ~CCPUCoreBarsPlugin();
     CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
     CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
-
-    // CPU functions
     void UpdateCpuUsage();
     void DetectCoreTypes();
-
-    // GPU functions
     void InitNVML();
     void ShutdownNVML();
     void UpdateGpuLimitReason();
-
-    // CPU items
     std::vector<CCpuUsageItem*> m_items;
     int m_num_cores;
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
     std::vector<BYTE> m_core_efficiency;
-
-    // GPU item
     CNvidiaLimitReasonItem* m_gpu_item = nullptr;
-
-    // NVML dynamic loading members
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
     nvmlDevice_t m_nvml_device;
-
-    // NVML function pointers
     decltype(nvmlInit_v2)* pfn_nvmlInit;
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
     decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
