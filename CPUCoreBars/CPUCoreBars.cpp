@@ -75,10 +75,10 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
         GraphicsPath path;
         path.AddString(p_state_text, -1, &fontFamily, FontStyleBold, 11, iconRectF, &strFormat);
 
-        Pen blackPen(Color(0, 0, 0), 1.5f);
+        Pen blackPen(Color(0, 0, 0), 2.0f);
         graphics.DrawPath(&blackPen, &path);
 
-        SolidBrush whiteBrush(Color(178, 139, 247));
+        SolidBrush whiteBrush(Color(255, 255, 255));
         graphics.FillPath(&whiteBrush, &path);
     }
 
