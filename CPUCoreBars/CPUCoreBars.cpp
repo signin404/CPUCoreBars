@@ -29,7 +29,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 // =================================================================
 // CNvidiaMonitorItem implementation
 // =================================================================
-CNvidiaMonitorItem::CNvidiaMonitorItem() { wcscpy_s(m_value_text, L"N/A"); HDC hdc = GetDC(NULL); HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); HFONT hOldFont = (HFONT)SelectObject(hdc, hFont); const wchar_t* sample_value = GetItemValueSampleText(); SIZE value_size; GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size); m_width = 18 + 6 + value_size.cx; SelectObject(hdc, hOldFont); ReleaseDC(NULL, hdc); }
+CNvidiaMonitorItem::CNvidiaMonitorItem() { wcscpy_s(m_value_text, L"N/A"); HDC hdc = GetDC(NULL); HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); HFONT hOldFont = (HFONT)SelectObject(hdc, hFont); const wchar_t* sample_value = GetItemValueSampleText(); SIZE value_size; GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size); m_width = 18 + 4 + value_size.cx; SelectObject(hdc, hOldFont); ReleaseDC(NULL, hdc); }
 const wchar_t* CNvidiaMonitorItem::GetItemName() const { return L"GPU/系统 状态"; }
 const wchar_t* CNvidiaMonitorItem::GetItemId() const { return L"gpu_system_status"; }
 const wchar_t* CNvidiaMonitorItem::GetItemLableText() const { return L""; }
@@ -41,37 +41,46 @@ int CNvidiaMonitorItem::GetItemWidth() const { return m_width; }
 void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
+    
+    int icon_size = min(w, h) - 2;
+    int icon_y_offset = (h - icon_size) / 2;
+    RectF iconRectF((REAL)x, (REAL)(y + icon_y_offset), (REAL)icon_size, (REAL)icon_size);
 
     // --- 1. Draw the Circle with GDI+ for Anti-Aliasing ---
     {
         Graphics graphics(dc);
         graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-
-        int icon_size = min(w, h) - 2;
-        int icon_y_offset = (h - icon_size) / 2;
         
         Color circleColor = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83);
         SolidBrush circleBrush(circleColor);
-        graphics.FillEllipse(&circleBrush, x, y + icon_y_offset, icon_size, icon_size);
-    } // `graphics` object is destroyed here, returning control to GDI
+        graphics.FillEllipse(&circleBrush, iconRectF);
+    }
 
-    // --- 2. Draw the P-State number with GDI for font consistency ---
-    int icon_size = min(w, h) - 2;
-    int icon_y_offset = (h - icon_size) / 2;
-    RECT icon_rect = { x, y + icon_y_offset, x + icon_size, y + icon_y_offset + icon_size };
-
+    // --- 2. Draw the P-State number with GDI+ for Outlining ---
     if (m_p_state != NVML_PSTATE_UNKNOWN)
     {
+        Graphics graphics(dc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        graphics.SetTextRenderingHint(TextRenderingHintAntiAlias);
+
         wchar_t p_state_text[4];
         swprintf_s(p_state_text, L"%d", m_p_state);
 
-        HFONT hFont = CreateFontW(-10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei");
-        HGDIOBJ hOldFont = SelectObject(dc, hFont);
-        SetTextColor(dc, RGB(246, 182, 78));
-        SetBkMode(dc, TRANSPARENT);
-        DrawTextW(dc, p_state_text, -1, &icon_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        SelectObject(dc, hOldFont);
-        DeleteObject(hFont);
+        FontFamily fontFamily(L"Microsoft YaHei");
+        StringFormat strFormat;
+        strFormat.SetAlignment(StringAlignmentCenter);
+        strFormat.SetLineAlignment(StringAlignmentCenter);
+        
+        GraphicsPath path;
+        path.AddString(p_state_text, -1, &fontFamily, FontStyleBold, 10, iconRectF, &strFormat);
+
+        // Draw the black outline
+        Pen blackPen(Color(0, 0, 0), 1.5f);
+        graphics.DrawPath(&blackPen, &path);
+
+        // Fill the white text
+        SolidBrush whiteBrush(Color(255, 255, 255));
+        graphics.FillPath(&whiteBrush, &path);
     }
 
     // --- 3. Draw the value text with GDI for font consistency ---
@@ -82,7 +91,7 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
     else if (wcscmp(current_value, L"功耗") == 0) { value_text_color = RGB(246, 182, 78); }
     
     SetTextColor(dc, value_text_color);
-    SetBkMode(dc, TRANSPARENT); // Ensure background is transparent for this text too
+    SetBkMode(dc, TRANSPARENT);
     DrawTextW(dc, current_value, -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
@@ -99,7 +108,7 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin() { GdiplusStartupInput gdiplusStartupInp
 CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin() { if (m_query) PdhCloseQuery(m_query); for (auto item : m_items) delete item; if (m_gpu_item) delete m_gpu_item; ShutdownNVML(); GdiplusShutdown(m_gdiplusToken); }
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index) { if (index < m_num_cores) { return m_items[index]; } if (index == m_num_cores && m_gpu_item != nullptr) { return m_gpu_item; } return nullptr; }
 void CCPUCoreBarsPlugin::DataRequired() { UpdateCpuUsage(); UpdateGpuLimitReason(); UpdateGpuPState(); UpdateWheaErrorCount(); UpdateNvlddmkmErrorCount(); if (m_gpu_item) { bool has_error = (m_whea_error_count > 0 || m_nvlddmkm_error_count > 0); m_gpu_item->SetSystemErrorStatus(has_error); m_gpu_item->SetPState(m_p_state); } }
-const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"CPU/GPU 高级监视器"; case TMI_DESCRIPTION: return L"显示CPU核心使用率、NVIDIA GPU状态及系统硬件错误。"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"3.4.0"; default: return L""; } }
+const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"CPU/GPU 高级监视器"; case TMI_DESCRIPTION: return L"显示CPU核心使用率、NVIDIA GPU状态及系统硬件错误。"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"3.5.0"; default: return L""; } }
 void CCPUCoreBarsPlugin::InitNVML() { m_nvml_dll = LoadLibrary(L"nvml.dll"); if (!m_nvml_dll) return; pfn_nvmlInit = (decltype(pfn_nvmlInit))GetProcAddress(m_nvml_dll, "nvmlInit_v2"); pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown"); pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2"); pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons"); pfn_nvmlDeviceGetPerformanceState = (decltype(pfn_nvmlDeviceGetPerformanceState))GetProcAddress(m_nvml_dll, "nvmlDeviceGetPerformanceState"); if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons || !pfn_nvmlDeviceGetPerformanceState) { ShutdownNVML(); return; } if (pfn_nvmlInit() != NVML_SUCCESS) { ShutdownNVML(); return; } if (pfn_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS) { ShutdownNVML(); return; } m_nvml_initialized = true; m_gpu_item = new CNvidiaMonitorItem(); }
 void CCPUCoreBarsPlugin::ShutdownNVML() { if (m_nvml_initialized && pfn_nvmlShutdown) { pfn_nvmlShutdown(); } if (m_nvml_dll) { FreeLibrary(m_nvml_dll); } m_nvml_initialized = false; m_nvml_dll = nullptr; }
 void CCPUCoreBarsPlugin::UpdateGpuLimitReason() { if (!m_nvml_initialized || !m_gpu_item) return; unsigned long long reasons = 0; if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) { if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); } else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); } else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"功耗"); } else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"功耗"); } else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L"空闲"); } else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L"无限"); } else { m_gpu_item->SetValue(L"无"); } } else { m_gpu_item->SetValue(L"错误"); } }
