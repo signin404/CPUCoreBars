@@ -50,7 +50,7 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
         int icon_size = min(w, h) - 2;
         int icon_y_offset = (h - icon_size) / 2;
         
-        Color circleColor = m_has_system_error ? Color(232, 18, 36) : Color(22, 198, 12);
+        Color circleColor = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83);
         SolidBrush circleBrush(circleColor);
         graphics.FillEllipse(&circleBrush, x, y + icon_y_offset, icon_size, icon_size);
     } // `graphics` object is destroyed here, returning control to GDI
@@ -67,7 +67,7 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
 
         HFONT hFont = CreateFontW(-10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei");
         HGDIOBJ hOldFont = SelectObject(dc, hFont);
-        SetTextColor(dc, RGB(255, 255, 255));
+        SetTextColor(dc, RGB(178, 139, 247));
         SetBkMode(dc, TRANSPARENT);
         DrawTextW(dc, p_state_text, -1, &icon_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         SelectObject(dc, hOldFont);
