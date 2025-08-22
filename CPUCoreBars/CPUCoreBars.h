@@ -59,13 +59,11 @@ public:
 
     void SetValue(const wchar_t* value);
     void SetSystemErrorStatus(bool has_error);
-    void SetPState(nvmlPstates_t p_state);
 
 private:
     wchar_t m_value_text[128];
     int m_width = 100;
     bool m_has_system_error = false;
-    nvmlPstates_t m_p_state = NVML_PSTATE_UNKNOWN;
 };
 
 
@@ -90,7 +88,6 @@ private:
     void InitNVML();
     void ShutdownNVML();
     void UpdateGpuLimitReason();
-    void UpdateGpuPState();
     void UpdateWheaErrorCount();
     void UpdateNvlddmkmErrorCount();
 
@@ -105,7 +102,6 @@ private:
     nvmlDevice_t m_nvml_device;
     int m_whea_error_count = 0;
     int m_nvlddmkm_error_count = 0;
-    nvmlPstates_t m_p_state = NVML_PSTATE_UNKNOWN;
 
     ULONG_PTR m_gdiplusToken;
 
@@ -113,5 +109,4 @@ private:
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
     decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
     decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
-    decltype(nvmlDeviceGetPerformanceState)* pfn_nvmlDeviceGetPerformanceState;
 };
