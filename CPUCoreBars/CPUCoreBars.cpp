@@ -88,7 +88,7 @@ CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
     SIZE icon_size;
     GetTextExtentPoint32W(hdc, sample_icon, (int)wcslen(sample_icon), &icon_size);
     
-    m_width = icon_size.cx + 5 + value_size.cx;
+    m_width = icon_size.cx + 4 + value_size.cx;
 
     SelectObject(hdc, hOldFont);
     ReleaseDC(NULL, hdc);
@@ -96,7 +96,7 @@ CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
 
 const wchar_t* CNvidiaLimitReasonItem::GetItemName() const { return L"GPU/WHEA 状态"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemId() const { return L"gpu_whea_status"; }
-const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"❄"; }
+const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L" ❄"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const { return m_value_text; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"软功耗"; }
 bool CNvidiaLimitReasonItem::IsCustomDraw() const { return true; }
@@ -246,7 +246,7 @@ void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
         else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"硬功耗"); }
         else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"软功耗"); }
         else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"软过热"); }
-        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L"空闲"); }
+        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L" 空闲"); }
         else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L"无限制"); }
         else { m_gpu_item->SetValue(L"无"); }
     }
