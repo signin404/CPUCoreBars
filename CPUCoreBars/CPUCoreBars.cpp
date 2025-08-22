@@ -98,7 +98,7 @@ const wchar_t* CNvidiaLimitReasonItem::GetItemName() const { return L"GPU/WHEA �
 const wchar_t* CNvidiaLimitReasonItem::GetItemId() const { return L"gpu_whea_status"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"❄"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const { return m_value_text; }
-const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"硬过热 "; }
+const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"硬件过热"; }
 bool CNvidiaLimitReasonItem::IsCustomDraw() const { return true; }
 int CNvidiaLimitReasonItem::GetItemWidth() const { return m_width; }
 
@@ -119,8 +119,8 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     if (m_whea_count > 0)
     {
         wchar_t whea_text[10];
-        if (m_whea_count > 99) {
-            wcscpy_s(whea_text, L"++");
+        if (m_whea_count > 5) {
+            wcscpy_s(whea_text, L"…");
         } else {
             swprintf_s(whea_text, L"%d", m_whea_count);
         }
