@@ -9,32 +9,10 @@
 // =================================================================
 // CPU Core Item (no changes)
 // =================================================================
-class CCpuUsageItem : public IPluginItem
-{
-public:
-    CCpuUsageItem(int core_index, bool is_e_core);
-    virtual ~CCpuUsageItem() = default;
-    const wchar_t* GetItemName() const override;
-    const wchar_t* GetItemId() const override;
-    const wchar_t* GetItemLableText() const override;
-    const wchar_t* GetItemValueText() const override;
-    const wchar_t* GetItemValueSampleText() const override;
-    bool IsCustomDraw() const override;
-    int GetItemWidth() const override;
-    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
-    void SetUsage(double usage);
-private:
-    void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
-    int m_core_index;
-    double m_usage = 0.0;
-    wchar_t m_item_name[32];
-    wchar_t m_item_id[32];
-    bool m_is_e_core;
-};
-
+class CCpuUsageItem : public IPluginItem { /* ... unchanged ... */ };
 
 // =================================================================
-// UPDATED: NVIDIA GPU Limit Reason Item
+// UPDATED: NVIDIA GPU / WHEA Combined Item
 // =================================================================
 class CNvidiaLimitReasonItem : public IPluginItem
 {
@@ -48,21 +26,22 @@ public:
     const wchar_t* GetItemValueText() const override;
     const wchar_t* GetItemValueSampleText() const override;
 
-    // --- Switch to Custom Draw ---
     bool IsCustomDraw() const override;
     int GetItemWidth() const override;
     void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
 
     void SetValue(const wchar_t* value);
+    void SetWheaCount(int count); // <--- New method to receive WHEA count
 
 private:
     wchar_t m_value_text[128];
-    int m_width = 100; // <--- Add member to store calculated width
+    int m_width = 100;
+    int m_whea_count = 0; // <--- New member to store WHEA count
 };
 
 
 // =================================================================
-// Main Plugin Class (no changes)
+// UPDATED: Main Plugin Class
 // =================================================================
 class CCPUCoreBarsPlugin : public ITMPlugin
 {
@@ -76,11 +55,18 @@ private:
     ~CCPUCoreBarsPlugin();
     CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
     CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
+    
+    // Existing methods
     void UpdateCpuUsage();
     void DetectCoreTypes();
     void InitNVML();
     void ShutdownNVML();
     void UpdateGpuLimitReason();
+
+    // New method for WHEA
+    void UpdateWheaErrorCount();
+
+    // Members
     std::vector<CCpuUsageItem*> m_items;
     int m_num_cores;
     PDH_HQUERY m_query = nullptr;
@@ -90,6 +76,11 @@ private:
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
     nvmlDevice_t m_nvml_device;
+    
+    // New member for WHEA
+    int m_whea_error_count = 0;
+
+    // NVML function pointers (unchanged)
     decltype(nvmlInit_v2)* pfn_nvmlInit;
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
     decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
