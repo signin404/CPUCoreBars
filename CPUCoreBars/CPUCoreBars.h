@@ -24,12 +24,33 @@ typedef nvmlReturn_t (*nvmlDeviceGetCurrentClocksThrottleReasons_t)(nvmlDevice_t
 typedef nvmlReturn_t (*nvmlDeviceGetPerformanceState_t)(nvmlDevice_t, nvmlPstate_t*);
 
 // =================================================================
-// CPU Core Item (no changes)
+// CPU Core Item
 // =================================================================
-class CCpuUsageItem : public IPluginItem { /* ... same as before ... */ };
+class CCpuUsageItem : public IPluginItem
+{
+public:
+    CCpuUsageItem(int core_index, bool is_e_core);
+    virtual ~CCpuUsageItem() = default;
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+    void SetUsage(double usage);
+private:
+    void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
+    int m_core_index;
+    double m_usage = 0.0;
+    wchar_t m_item_name[32];
+    wchar_t m_item_id[32];
+    bool m_is_e_core;
+};
 
 // =================================================================
-// NEW: Merged NVIDIA Status Item
+// Merged NVIDIA Status Item
 // =================================================================
 class CNvidiaStatusItem : public IPluginItem
 {
@@ -51,7 +72,7 @@ private:
 };
 
 // =================================================================
-// Main Plugin Class (updated to use the merged item)
+// Main Plugin Class
 // =================================================================
 class CCPUCoreBarsPlugin : public ITMPlugin
 {
@@ -75,7 +96,7 @@ private:
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
     std::vector<BYTE> m_core_efficiency;
-    CNvidiaStatusItem* m_gpu_status_item = nullptr; // <-- Merged item
+    CNvidiaStatusItem* m_gpu_status_item = nullptr;
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
     nvmlDevice_t m_nvml_device;
