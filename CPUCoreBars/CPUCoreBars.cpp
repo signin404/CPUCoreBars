@@ -107,7 +107,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     HDC dc = (HDC)hDC;
     
     SIZE icon_size;
-    GetTextExtentPoint32W(dc, L"99", 2, &icon_size);
+    GetTextExtentPoint32W(dc, L"99", 3, &icon_size);
     int icon_width = icon_size.cx;
 
     RECT icon_rect = { x, y, x + icon_width, y + h };
