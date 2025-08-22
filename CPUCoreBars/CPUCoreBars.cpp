@@ -144,7 +144,7 @@ const wchar_t* CNvidiaLimitReasonItem::GetItemId() const
 
 const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const
 {
-    return L"🔔";
+    return L"🟢";
 }
 
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const
@@ -175,7 +175,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     bool is_whea_error = m_whea_count > 0;
 
     if (is_whea_error) {
-            wcscpy_s(icon_text, L"🛑");
+            wcscpy_s(icon_text, L"🔴");
     } else {
         wcscpy_s(icon_text, GetItemLableText());
     }
