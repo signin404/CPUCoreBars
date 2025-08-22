@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <vector>
 #include <Pdh.h>
+#include <gdiplus.h> // <-- Include GDI+ headers
 #include "PluginInterface.h"
 #include "nvml.h"
 
@@ -104,6 +105,8 @@ private:
     int m_whea_error_count = 0;
     int m_nvlddmkm_error_count = 0;
     nvmlPstates_t m_p_state = NVML_PSTATE_UNKNOWN;
+
+    ULONG_PTR m_gdiplusToken; // <-- GDI+ token
 
     decltype(nvmlInit_v2)* pfn_nvmlInit;
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
