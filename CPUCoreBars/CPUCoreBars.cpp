@@ -176,9 +176,9 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
 
     if (is_whea_error) {
         if (m_whea_count > 5) {
-            wcscpy_s(icon_text, L"⚠");
+            wcscpy_s(icon_text, L"‼️");
         } else {
-            swprintf_s(icon_text, L"⚠", m_whea_count);
+            swprintf_s(icon_text, L"‼️", m_whea_count);
         }
     } else {
         wcscpy_s(icon_text, GetItemLableText());
