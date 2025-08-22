@@ -67,13 +67,13 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
         wchar_t p_state_text[4];
         swprintf_s(p_state_text, L"%d", m_p_state);
 
-        FontFamily fontFamily(L"Microsoft YaHei");
+        FontFamily fontFamily(L"Segoe UI");
         StringFormat strFormat;
         strFormat.SetAlignment(StringAlignmentCenter);
         strFormat.SetLineAlignment(StringAlignmentCenter);
         
         GraphicsPath path;
-        path.AddString(p_state_text, -1, &fontFamily, FontStyleBold, 12, iconRectF, &strFormat);
+        path.AddString(p_state_text, -1, &fontFamily, FontStyleBold, 11, iconRectF, &strFormat);
 
         Pen blackPen(Color(0, 0, 0), 2.0f);
         graphics.DrawPath(&blackPen, &path);
