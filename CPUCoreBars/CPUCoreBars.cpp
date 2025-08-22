@@ -175,11 +175,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     bool is_whea_error = m_whea_count > 0;
 
     if (is_whea_error) {
-        if (m_whea_count > 5) {
             wcscpy_s(icon_text, L"🛑");
-        } else {
-            swprintf_s(icon_text, L"🛑", m_whea_count);
-        }
     } else {
         wcscpy_s(icon_text, GetItemLableText());
     }
@@ -201,8 +197,21 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     }
     DrawTextW(dc, icon_text, -1, &icon_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
-    SetTextColor(dc, default_text_color);
-    DrawTextW(dc, GetItemValueText(), -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    // Determine the color for the value text
+    COLORREF value_text_color = default_text_color;
+    const wchar_t* current_value = GetItemValueText();
+    if (wcscmp(current_value, L"过热") == 0)
+    {
+        value_text_color = RGB(217, 66, 53); // Red for thermal throttling
+    }
+    else if (wcscmp(current_value, L"功耗") == 0)
+    {
+        value_text_color = RGB(246, 182, 78); // Yellow for power throttling
+    }
+
+    // Set the determined color and draw the text
+    SetTextColor(dc, value_text_color);
+    DrawTextW(dc, current_value, -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
 void CNvidiaLimitReasonItem::SetValue(const wchar_t* value)
