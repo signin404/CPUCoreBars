@@ -96,7 +96,7 @@ CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
 
 const wchar_t* CNvidiaLimitReasonItem::GetItemName() const { return L"GPU/WHEA 状态"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemId() const { return L"gpu_whea_status"; }
-const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L" ❄"; }
+const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"❄"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const { return m_value_text; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"软功耗"; }
 bool CNvidiaLimitReasonItem::IsCustomDraw() const { return true; }
