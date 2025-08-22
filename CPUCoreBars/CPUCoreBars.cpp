@@ -44,7 +44,7 @@ CNvidiaMonitorItem::CNvidiaMonitorItem()
     GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size);
     
     // Width = 18px (icon) + 4px (padding) + text width
-    m_width = 18 + 4 + value_size.cx;
+    m_width = 16 + 4 + value_size.cx;
 
     SelectObject(hdc, hOldFont);
     ReleaseDC(NULL, hdc);
@@ -66,7 +66,7 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
     int icon_y_offset = (h - icon_size) / 2;
     RECT icon_rect = { x, y + icon_y_offset, x + icon_size, y + icon_y_offset + icon_size };
     
-    COLORREF circle_color = m_has_system_error ? RGB(217, 66, 53) : RGB(40, 167, 69); // Red or Green
+    COLORREF circle_color = m_has_system_error ? RGB(217, 66, 53) : RGB(118, 202, 83); // Red or Green
     COLORREF text_color = RGB(255, 255, 255); // White text for inside the circle
 
     // 2. Draw the colored circle
