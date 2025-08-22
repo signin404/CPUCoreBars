@@ -154,7 +154,7 @@ const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const
 
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const
 {
-    return L" 宽度";
+    return L"宽度";
 }
 
 bool CNvidiaLimitReasonItem::IsCustomDraw() const
@@ -336,15 +336,15 @@ void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
 
     unsigned long long reasons = 0;
     if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) {
-        if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L" 过热"); }
-        else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L" 过热"); }
-        else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L" 功耗"); }
-        else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L" 功耗"); }
-        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L" 空闲"); }
-        else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L" 无限"); }
+        if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
+        else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
+        else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"功耗"); }
+        else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"功耗"); }
+        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L"空闲"); }
+        else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L"无限"); }
         else { m_gpu_item->SetValue(L"无"); }
     } else {
-        m_gpu_item->SetValue(L" 错误");
+        m_gpu_item->SetValue(L"错误");
     }
 }
 
