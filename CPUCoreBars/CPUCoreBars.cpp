@@ -1,4 +1,4 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp
+// CPUCoreBars/CPUCoreBars.cpp
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -29,30 +29,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 // =================================================================
 // CNvidiaMonitorItem implementation
 // =================================================================
-CNvidiaMonitorItem::CNvidiaMonitorItem()
-{
-    wcscpy_s(m_value_text, L"N/A");
-
-    HDC hdc = GetDC(NULL);
-    HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
-    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-
-    // Measure the width of the green circle emoji to be used as the icon width
-    const wchar_t* sample_icon = L"\U0001F7E2";
-    SIZE icon_size;
-    GetTextExtentPoint32W(hdc, sample_icon, (int)wcslen(sample_icon), &icon_size);
-    m_icon_width = icon_size.cx;
-
-    const wchar_t* sample_value = GetItemValueSampleText();
-    SIZE value_size;
-    GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size);
-    
-    // Total width is the measured icon width + padding + value width
-    m_width = m_icon_width + 4 + value_size.cx;
-
-    SelectObject(hdc, hOldFont);
-    ReleaseDC(NULL, hdc);
-}
+CNvidiaMonitorItem::CNvidiaMonitorItem() { wcscpy_s(m_value_text, L"N/A"); HDC hdc = GetDC(NULL); HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); HFONT hOldFont = (HFONT)SelectObject(hdc, hFont); const wchar_t* sample_value = GetItemValueSampleText(); SIZE value_size; GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size); m_width = 20 + 4 + value_size.cx; SelectObject(hdc, hOldFont); ReleaseDC(NULL, hdc); }
 const wchar_t* CNvidiaMonitorItem::GetItemName() const { return L"GPU/系统 状态"; }
 const wchar_t* CNvidiaMonitorItem::GetItemId() const { return L"gpu_system_status"; }
 const wchar_t* CNvidiaMonitorItem::GetItemLableText() const { return L""; }
@@ -64,42 +41,50 @@ int CNvidiaMonitorItem::GetItemWidth() const { return m_width; }
 void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
+    
+    int icon_size = min(w, h) - 2;
+    int icon_y_offset = (h - icon_size) / 2;
+    RectF iconRectF((REAL)x, (REAL)(y + icon_y_offset), (REAL)icon_size, (REAL)icon_size);
 
     // --- 1. Draw the Circle with GDI+ for Anti-Aliasing ---
     {
         Graphics graphics(dc);
         graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-
-        // The drawn circle's diameter is based on available height for vertical centering
-        int drawn_icon_diameter = min(w, h) - 2;
-        int icon_y_offset = (h - drawn_icon_diameter) / 2;
-        // The circle is centered horizontally within the reserved icon width area
-        int icon_x_offset = (m_icon_width - drawn_icon_diameter) / 2;
         
         Color circleColor = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83);
         SolidBrush circleBrush(circleColor);
-        graphics.FillEllipse(&circleBrush, x + icon_x_offset, y + icon_y_offset, drawn_icon_diameter, drawn_icon_diameter);
+        graphics.FillEllipse(&circleBrush, iconRectF);
     }
 
-    // --- 2. Draw the P-State number with GDI for font consistency ---
-    RECT icon_rect = { x, y, x + m_icon_width, y + h };
-
+    // --- 2. Draw the P-State number with GDI+ for Outlining ---
     if (m_p_state != NVML_PSTATE_UNKNOWN)
     {
+        Graphics graphics(dc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        graphics.SetTextRenderingHint(TextRenderingHintAntiAlias);
+
         wchar_t p_state_text[4];
         swprintf_s(p_state_text, L"%d", m_p_state);
 
-        HFONT hFont = CreateFontW(-10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei");
-        HGDIOBJ hOldFont = SelectObject(dc, hFont);
-        SetTextColor(dc, RGB(255, 255, 255));
-        SetBkMode(dc, TRANSPARENT);
-        DrawTextW(dc, p_state_text, -1, &icon_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        SelectObject(dc, hOldFont);
-        DeleteObject(hFont);
+        FontFamily fontFamily(L"Microsoft YaHei");
+        StringFormat strFormat;
+        strFormat.SetAlignment(StringAlignmentCenter);
+        strFormat.SetLineAlignment(StringAlignmentCenter);
+        
+        GraphicsPath path;
+        path.AddString(p_state_text, -1, &fontFamily, FontStyleBold, 11, iconRectF, &strFormat);
+
+        // Draw the black outline
+        Pen blackPen(Color(0, 0, 0), 1.5f);
+        graphics.DrawPath(&blackPen, &path);
+
+        // Fill the white text
+        SolidBrush whiteBrush(Color(255, 255, 255));
+        graphics.FillPath(&whiteBrush, &path);
     }
 
     // --- 3. Draw the value text with GDI for font consistency ---
-    RECT text_rect = { x + m_icon_width + 4, y, x + w, y + h };
+    RECT text_rect = { x + icon_size + 4, y, x + w, y + h };
     COLORREF value_text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
     const wchar_t* current_value = GetItemValueText();
     if (wcscmp(current_value, L"过热") == 0) { value_text_color = RGB(217, 66, 53); }

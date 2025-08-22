@@ -64,7 +64,6 @@ public:
 private:
     wchar_t m_value_text[128];
     int m_width = 100;
-    int m_icon_width = 18; // Add member to store calculated icon width
     bool m_has_system_error = false;
     nvmlPstates_t m_p_state = NVML_PSTATE_UNKNOWN;
 };
