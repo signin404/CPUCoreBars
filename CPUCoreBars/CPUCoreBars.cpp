@@ -29,7 +29,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 // =================================================================
 // CNvidiaMonitorItem implementation
 // =================================================================
-CNvidiaMonitorItem::CNvidiaMonitorItem() { wcscpy_s(m_value_text, L"N/A"); HDC hdc = GetDC(NULL); HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); HFONT hOldFont = (HFONT)SelectObject(hdc, hFont); const wchar_t* sample_value = GetItemValueSampleText(); SIZE value_size; GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size); m_width = 18 + 4 + value_size.cx; SelectObject(hdc, hOldFont); ReleaseDC(NULL, hdc); }
+CNvidiaMonitorItem::CNvidiaMonitorItem() { wcscpy_s(m_value_text, L"N/A"); HDC hdc = GetDC(NULL); HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); HFONT hOldFont = (HFONT)SelectObject(hdc, hFont); const wchar_t* sample_value = GetItemValueSampleText(); SIZE value_size; GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size); m_width = 18 + 6 + value_size.cx; SelectObject(hdc, hOldFont); ReleaseDC(NULL, hdc); }
 const wchar_t* CNvidiaMonitorItem::GetItemName() const { return L"GPU/系统 状态"; }
 const wchar_t* CNvidiaMonitorItem::GetItemId() const { return L"gpu_system_status"; }
 const wchar_t* CNvidiaMonitorItem::GetItemLableText() const { return L""; }
@@ -50,7 +50,7 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
         int icon_size = min(w, h) - 2;
         int icon_y_offset = (h - icon_size) / 2;
         
-        Color circleColor = m_has_system_error ? Color(217, 66, 53) : Color(40, 167, 69);
+        Color circleColor = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83);
         SolidBrush circleBrush(circleColor);
         graphics.FillEllipse(&circleBrush, x, y + icon_y_offset, icon_size, icon_size);
     } // `graphics` object is destroyed here, returning control to GDI
@@ -65,9 +65,9 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
         wchar_t p_state_text[4];
         swprintf_s(p_state_text, L"%d", m_p_state);
 
-        HFONT hFont = CreateFontW(-10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial");
+        HFONT hFont = CreateFontW(-10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei");
         HGDIOBJ hOldFont = SelectObject(dc, hFont);
-        SetTextColor(dc, RGB(255, 255, 255));
+        SetTextColor(dc, RGB(246, 182, 78));
         SetBkMode(dc, TRANSPARENT);
         DrawTextW(dc, p_state_text, -1, &icon_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         SelectObject(dc, hOldFont);
