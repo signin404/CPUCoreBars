@@ -7,7 +7,7 @@
 #include "nvml.h"
 
 // =================================================================
-// CPU Core Item (Full Definition)
+// CPU Core Item
 // =================================================================
 class CCpuUsageItem : public IPluginItem
 {
@@ -37,13 +37,13 @@ private:
 
 
 // =================================================================
-// NVIDIA GPU / WHEA Combined Item
+// GPU / System Error Combined Item
 // =================================================================
-class CNvidiaLimitReasonItem : public IPluginItem
+class CNvidiaMonitorItem : public IPluginItem
 {
 public:
-    CNvidiaLimitReasonItem();
-    virtual ~CNvidiaLimitReasonItem() = default;
+    CNvidiaMonitorItem();
+    virtual ~CNvidiaMonitorItem() = default;
 
     const wchar_t* GetItemName() const override;
     const wchar_t* GetItemId() const override;
@@ -56,12 +56,12 @@ public:
     void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
 
     void SetValue(const wchar_t* value);
-    void SetWheaCount(int count);
+    void SetSystemErrorStatus(bool has_error);
 
 private:
     wchar_t m_value_text[128];
     int m_width = 100;
-    int m_whea_count = 0;
+    bool m_has_system_error = false;
 };
 
 
@@ -87,17 +87,19 @@ private:
     void ShutdownNVML();
     void UpdateGpuLimitReason();
     void UpdateWheaErrorCount();
+    void UpdateNvlddmkmErrorCount();
 
     std::vector<CCpuUsageItem*> m_items;
     int m_num_cores;
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
     std::vector<BYTE> m_core_efficiency;
-    CNvidiaLimitReasonItem* m_gpu_item = nullptr;
+    CNvidiaMonitorItem* m_gpu_item = nullptr;
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
     nvmlDevice_t m_nvml_device;
     int m_whea_error_count = 0;
+    int m_nvlddmkm_error_count = 0;
 
     decltype(nvmlInit_v2)* pfn_nvmlInit;
     decltype(nvmlShutdown)* pfn_nvmlShutdown;

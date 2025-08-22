@@ -49,7 +49,7 @@ bool CCpuUsageItem::IsCustomDraw() const
 
 int CCpuUsageItem::GetItemWidth() const
 {
-    return 8;
+    return 8; // UPDATED: Width changed to 8
 }
 
 void CCpuUsageItem::SetUsage(double usage)
@@ -62,7 +62,7 @@ void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
     COLORREF icon_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
     SetTextColor(hDC, icon_color);
     SetBkMode(hDC, TRANSPARENT);
-    const wchar_t* symbol = L"\u2618";
+    const wchar_t* symbol = L"\u2618"; // UPDATED: Icon changed to shamrock
     HFONT hFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
     HGDIOBJ hOldFont = SelectObject(hDC, hFont);
     DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -87,7 +87,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
         bar_color = RGB(118, 202, 83);
     }
 
-    if (m_usage >= 0.9) {
+    if (m_usage >= 0.9) { // UPDATED: Threshold changed to 0.9
         bar_color = RGB(217, 66, 53);
     } else if (m_usage >= 0.5) {
         bar_color = RGB(246, 182, 78);
@@ -108,9 +108,9 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 
 
 // =================================================================
-// CNvidiaLimitReasonItem implementation
+// CNvidiaMonitorItem implementation
 // =================================================================
-CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
+CNvidiaMonitorItem::CNvidiaMonitorItem()
 {
     wcscpy_s(m_value_text, L"N/A");
 
@@ -122,7 +122,7 @@ CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
     SIZE value_size;
     GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size);
 
-    const wchar_t* sample_icon = L"99";
+    const wchar_t* sample_icon = L"🔴"; // Red circle emoji
     SIZE icon_size;
     GetTextExtentPoint32W(hdc, sample_icon, (int)wcslen(sample_icon), &icon_size);
     
@@ -132,53 +132,47 @@ CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
     ReleaseDC(NULL, hdc);
 }
 
-const wchar_t* CNvidiaLimitReasonItem::GetItemName() const
+const wchar_t* CNvidiaMonitorItem::GetItemName() const
 {
     return L"GPU/WHEA 状态";
 }
 
-const wchar_t* CNvidiaLimitReasonItem::GetItemId() const
+const wchar_t* CNvidiaMonitorItem::GetItemId() const
 {
-    return L"gpu_whea_status";
+    return L"gpu_system_status";
 }
 
-const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const
+const wchar_t* CNvidiaMonitorItem::GetItemLableText() const
 {
-    return L"🟢";
+    return L"🟢"; // Green circle emoji
 }
 
-const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const
+const wchar_t* CNvidiaMonitorItem::GetItemValueText() const
 {
     return m_value_text;
 }
 
-const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const
+const wchar_t* CNvidiaMonitorItem::GetItemValueSampleText() const
 {
     return L"宽度";
 }
 
-bool CNvidiaLimitReasonItem::IsCustomDraw() const
+bool CNvidiaMonitorItem::IsCustomDraw() const
 {
     return true;
 }
 
-int CNvidiaLimitReasonItem::GetItemWidth() const
+int CNvidiaMonitorItem::GetItemWidth() const
 {
     return m_width;
 }
 
-void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
+void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
 
-    wchar_t icon_text[10];
-    bool is_whea_error = m_whea_count > 0;
-
-    if (is_whea_error) {
-            wcscpy_s(icon_text, L"🔴");
-    } else {
-        wcscpy_s(icon_text, GetItemLableText());
-    }
+    // UPDATED: Icon logic is now a simple choice between two emojis
+    const wchar_t* icon_text = m_has_system_error ? L"🔴" : L"🟢";
 
     COLORREF default_text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
     SetBkMode(dc, TRANSPARENT);
@@ -190,11 +184,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     RECT icon_rect = { x, y, x + icon_width, y + h };
     RECT text_rect = { x + icon_width + 4, y, x + w, y + h };
 
-    if (is_whea_error) {
-        SetTextColor(dc, RGB(255, 0, 0));
-    } else {
-        SetTextColor(dc, default_text_color);
-    }
+    // Emojis have their own color, so we don't need to set a text color for them
     DrawTextW(dc, icon_text, -1, &icon_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     // Determine the color for the value text
@@ -202,26 +192,25 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     const wchar_t* current_value = GetItemValueText();
     if (wcscmp(current_value, L"过热") == 0)
     {
-        value_text_color = RGB(217, 66, 53); // Red for thermal throttling
+        value_text_color = RGB(217, 66, 53);
     }
     else if (wcscmp(current_value, L"功耗") == 0)
     {
-        value_text_color = RGB(246, 182, 78); // Yellow for power throttling
+        value_text_color = RGB(246, 182, 78);
     }
 
-    // Set the determined color and draw the text
     SetTextColor(dc, value_text_color);
     DrawTextW(dc, current_value, -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
-void CNvidiaLimitReasonItem::SetValue(const wchar_t* value)
+void CNvidiaMonitorItem::SetValue(const wchar_t* value)
 {
     wcscpy_s(m_value_text, value);
 }
 
-void CNvidiaLimitReasonItem::SetWheaCount(int count)
+void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error)
 {
-    m_whea_count = count;
+    m_has_system_error = has_error;
 }
 
 
@@ -283,8 +272,11 @@ void CCPUCoreBarsPlugin::DataRequired()
     UpdateCpuUsage();
     UpdateGpuLimitReason();
     UpdateWheaErrorCount();
+    UpdateNvlddmkmErrorCount();
+
     if (m_gpu_item) {
-        m_gpu_item->SetWheaCount(m_whea_error_count);
+        bool has_error = (m_whea_error_count > 0 || m_nvlddmkm_error_count > 0);
+        m_gpu_item->SetSystemErrorStatus(has_error);
     }
 }
 
@@ -292,11 +284,11 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index) {
     case TMI_NAME: return L"性能/错误监控";
-    case TMI_DESCRIPTION: return L"CPU核心使用率条形图/GPU受限/WHEA计数";
+    case TMI_DESCRIPTION: return L"CPU核心使用率条形图/GPU受限/WHEA错误";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"2.6.0";
+    case TMI_VERSION: return L"3.0.0";
     default: return L"";
     }
 }
@@ -324,7 +316,7 @@ void CCPUCoreBarsPlugin::InitNVML()
         return;
     }
     m_nvml_initialized = true;
-    m_gpu_item = new CNvidiaLimitReasonItem();
+    m_gpu_item = new CNvidiaMonitorItem();
 }
 
 void CCPUCoreBarsPlugin::ShutdownNVML()
@@ -424,6 +416,29 @@ void CCPUCoreBarsPlugin::UpdateWheaErrorCount()
         }
     }
     m_whea_error_count = dwEventCount;
+    EvtClose(hResults);
+}
+
+void CCPUCoreBarsPlugin::UpdateNvlddmkmErrorCount()
+{
+    LPCWSTR query = L"*[System[Provider[@Name='nvlddmkm'] and TimeCreated[timediff(@SystemTime) <= 86400000]]]";
+    EVT_HANDLE hResults = EvtQuery(NULL, L"System", query, EvtQueryChannelPath | EvtQueryReverseDirection);
+    if (hResults == NULL) {
+        m_nvlddmkm_error_count = 0;
+        return;
+    }
+
+    DWORD dwEventCount = 0;
+    EVT_HANDLE hEvents[128];
+    DWORD dwReturned = 0;
+    while (EvtNext(hResults, ARRAYSIZE(hEvents), hEvents, INFINITE, 0, &dwReturned))
+    {
+        dwEventCount += dwReturned;
+        for (DWORD i = 0; i < dwReturned; i++) {
+            EvtClose(hEvents[i]);
+        }
+    }
+    m_nvlddmkm_error_count = dwEventCount;
     EvtClose(hResults);
 }
 
