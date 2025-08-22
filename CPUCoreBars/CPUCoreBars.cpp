@@ -30,13 +30,13 @@ CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
     wcscpy_s(m_value_text, L"N/A");
 }
 
-const wchar_t* CNvidiaLimitReasonItem::GetItemName() const { return L"NVIDIA é™åˆ¶åŸå› "; }
+const wchar_t* CNvidiaLimitReasonItem::GetItemName() const { return L"NVIDIA ÏŞÖÆÔ­Òò"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemId() const { return L"nvidia_limit_reason"; }
-const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"GPUé™åˆ¶:"; }
+const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"GPUÏŞÖÆ:"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const { return m_value_text; }
 
 // UPDATED: Provide the longest possible string for auto-width calculation
-const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"ç¡¬è¿‡çƒ­"; }
+const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"Ó²¹ıÈÈ"; }
 
 bool CNvidiaLimitReasonItem::IsCustomDraw() const { return false; }
 int CNvidiaLimitReasonItem::GetItemWidth() const { return 0; }
@@ -106,8 +106,8 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index)
     {
-    case TMI_NAME: return L"CPU/GPU æ€§èƒ½ç›‘è§†å™¨";
-    case TMI_DESCRIPTION: return L"æ˜¾ç¤ºCPUæ ¸å¿ƒä½¿ç”¨ç‡å’ŒNVIDIA GPUæ€§èƒ½é™åˆ¶åŸå› ";
+    case TMI_NAME: return L"CPU/GPU ĞÔÄÜ¼àÊÓÆ÷";
+    case TMI_DESCRIPTION: return L"ÏÔÊ¾CPUºËĞÄÊ¹ÓÃÂÊºÍNVIDIA GPUĞÔÄÜÏŞÖÆÔ­Òò";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
@@ -149,24 +149,24 @@ void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
     {
         // Check with priority, from most critical to least
         if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) {
-            m_gpu_item->SetValue(L"ç¡¬è¿‡çƒ­");
+            m_gpu_item->SetValue(L"Ó²¹ıÈÈ");
         } else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) {
-            m_gpu_item->SetValue(L"ç¡¬åŠŸè€—"); // VOp Limit
+            m_gpu_item->SetValue(L"Ó²¹¦ºÄ"); // VOp Limit
         } else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) {
-            m_gpu_item->SetValue(L"è½¯è¿‡çƒ­");
+            m_gpu_item->SetValue(L"Èí¹ıÈÈ");
         } else if (reasons & nvmlClocksThrottleReasonSwPowerCap) {
-            m_gpu_item->SetValue(L"è½¯åŠŸè€—"); // VRel Limit
+            m_gpu_item->SetValue(L"Èí¹¦ºÄ"); // VRel Limit
         } else if (reasons & nvmlClocksThrottleReasonGpuIdle) {
-            m_gpu_item->SetValue(L"ç©ºé—²");
+            m_gpu_item->SetValue(L"¿ÕÏĞ");
         } else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) {
-            m_gpu_item->SetValue(L"æ— é™åˆ¶");
+            m_gpu_item->SetValue(L"ÎŞÏŞÖÆ");
         } else {
-            m_gpu_item->SetValue(L"æ— "); // None
+            m_gpu_item->SetValue(L"ÎŞ"); // None
         }
     }
     else
     {
-        m_gpu_item->SetValue(L"é”™è¯¯");
+        m_gpu_item->SetValue(L"´íÎó");
     }
 }
 
