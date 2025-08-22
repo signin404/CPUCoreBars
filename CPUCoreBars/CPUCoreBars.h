@@ -1,4 +1,3 @@
-// CPUCoreBars/CPUCoreBars.h
 #pragma once
 #include <windows.h>
 #include <vector>
@@ -7,18 +6,60 @@
 #include "nvml.h"
 
 // =================================================================
-// CPU Core Item (no changes)
+// CPU Core Item
 // =================================================================
-class CCpuUsageItem : public IPluginItem { /* ... existing code ... */ };
+class CCpuUsageItem : public IPluginItem
+{
+public:
+    CCpuUsageItem(int core_index, bool is_e_core);
+    virtual ~CCpuUsageItem() = default;
+
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+
+    void SetUsage(double usage);
+
+private:
+    void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
+    int m_core_index;
+    double m_usage = 0.0;
+    wchar_t m_item_name[32];
+    wchar_t m_item_id[32];
+    bool m_is_e_core;
+};
 
 // =================================================================
-// NVIDIA GPU Limit Reason Item (no changes)
+// NVIDIA GPU Limit Reason Item
 // =================================================================
-class CNvidiaLimitReasonItem : public IPluginItem { /* ... existing code ... */ };
+class CNvidiaLimitReasonItem : public IPluginItem
+{
+public:
+    CNvidiaLimitReasonItem();
+    virtual ~CNvidiaLimitReasonItem() = default;
 
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+
+    void SetValue(const wchar_t* value);
+
+private:
+    wchar_t m_value_text[128];
+};
 
 // =================================================================
-// NEW: NVIDIA P-State Item
+// NVIDIA P-State Item
 // =================================================================
 class CNvidiaPStateItem : public IPluginItem
 {
@@ -28,7 +69,7 @@ public:
 
     const wchar_t* GetItemName() const override;
     const wchar_t* GetItemId() const override;
-    const wchar_t* GetItemLableText() const override; // Will return dynamic text
+    const wchar_t* GetItemLableText() const override;
     const wchar_t* GetItemValueText() const override;
     const wchar_t* GetItemValueSampleText() const override;
     bool IsCustomDraw() const override;
@@ -42,9 +83,8 @@ private:
     wchar_t m_value_text[128];
 };
 
-
 // =================================================================
-// Main Plugin Class (updated for P-State)
+// Main Plugin Class
 // =================================================================
 class CCPUCoreBarsPlugin : public ITMPlugin
 {
@@ -60,35 +100,28 @@ private:
     CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
     CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
 
-    // CPU functions
     void UpdateCpuUsage();
     void DetectCoreTypes();
-
-    // GPU functions
     void InitNVML();
     void ShutdownNVML();
-    void UpdateGpuStatus(); // Combined update function
+    void UpdateGpuStatus();
 
-    // CPU items
     std::vector<CCpuUsageItem*> m_items;
     int m_num_cores;
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
     std::vector<BYTE> m_core_efficiency;
 
-    // GPU items
     CNvidiaLimitReasonItem* m_gpu_limit_item = nullptr;
-    CNvidiaPStateItem* m_gpu_pstate_item = nullptr; // New P-State item
+    CNvidiaPStateItem* m_gpu_pstate_item = nullptr;
 
-    // NVML members
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
     nvmlDevice_t m_nvml_device;
 
-    // NVML function pointers
     decltype(nvmlInit_v2)* pfn_nvmlInit;
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
     decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
     decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
-    decltype(nvmlDeviceGetPerformanceState)* pfn_nvmlDeviceGetPerformanceState; // New function pointer
+    decltype(nvmlDeviceGetPerformanceState)* pfn_nvmlDeviceGetPerformanceState;
 };
