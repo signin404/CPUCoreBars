@@ -84,7 +84,7 @@ CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
     SIZE value_size;
     GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size);
 
-    const wchar_t* sample_icon = L"99+";
+    const wchar_t* sample_icon = L"99";
     SIZE icon_size;
     GetTextExtentPoint32W(hdc, sample_icon, (int)wcslen(sample_icon), &icon_size);
     
@@ -96,7 +96,7 @@ CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
 
 const wchar_t* CNvidiaLimitReasonItem::GetItemName() const { return L"GPU/WHEA 状态"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemId() const { return L"gpu_whea_status"; }
-const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"☁"; }
+const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"❄"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const { return m_value_text; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"硬过热"; }
 bool CNvidiaLimitReasonItem::IsCustomDraw() const { return true; }
@@ -107,7 +107,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     HDC dc = (HDC)hDC;
     
     SIZE icon_size;
-    GetTextExtentPoint32W(dc, L"99+", 3, &icon_size);
+    GetTextExtentPoint32W(dc, L"99", 3, &icon_size);
     int icon_width = icon_size.cx;
 
     RECT icon_rect = { x, y, x + icon_width, y + h };
@@ -125,7 +125,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
             swprintf_s(whea_text, L"%d", m_whea_count);
         }
         
-        SetTextColor(dc, RGB(255, 0, 0));
+        SetTextColor(dc, RGB(217, 66, 53));
         DrawTextW(dc, whea_text, -1, &icon_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     else
