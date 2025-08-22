@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp
+﻿// CPUCoreBars/CPUCoreBars.cpp
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
