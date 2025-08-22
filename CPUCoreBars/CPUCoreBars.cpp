@@ -88,7 +88,7 @@ CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
     SIZE icon_size;
     GetTextExtentPoint32W(hdc, sample_icon, (int)wcslen(sample_icon), &icon_size);
     
-    m_width = icon_size.cx + 1 + value_size.cx;
+    m_width = icon_size.cx + 5 + value_size.cx;
 
     SelectObject(hdc, hOldFont);
     ReleaseDC(NULL, hdc);
@@ -111,7 +111,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     int icon_width = icon_size.cx;
 
     RECT icon_rect = { x, y, x + icon_width, y + h };
-    RECT text_rect = { x + icon_width + 5, y, x + w, y + h };
+    RECT text_rect = { x + icon_width + 4, y, x + w, y + h };
 
     COLORREF default_text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
     SetBkMode(dc, TRANSPARENT);
