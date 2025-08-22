@@ -6,6 +6,9 @@
 
 #pragma comment(lib, "pdh.lib")
 #pragma comment(lib, "wevtapi.lib")
+#pragma comment(lib, "gdiplus.lib")
+
+using namespace Gdiplus;
 
 // =================================================================
 // CCpuUsageItem implementation
@@ -49,7 +52,7 @@ bool CCpuUsageItem::IsCustomDraw() const
 
 int CCpuUsageItem::GetItemWidth() const
 {
-    return 8; // UPDATED: Width changed to 8
+    return 8;
 }
 
 void CCpuUsageItem::SetUsage(double usage)
@@ -62,7 +65,7 @@ void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
     COLORREF icon_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
     SetTextColor(hDC, icon_color);
     SetBkMode(hDC, TRANSPARENT);
-    const wchar_t* symbol = L"\u2618"; // UPDATED: Icon changed to shamrock
+    const wchar_t* symbol = L"\u2618";
     HFONT hFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
     HGDIOBJ hOldFont = SelectObject(hDC, hFont);
     DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -87,7 +90,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
         bar_color = RGB(118, 202, 83);
     }
 
-    if (m_usage >= 0.9) { // UPDATED: Threshold changed to 0.9
+    if (m_usage >= 0.9) {
         bar_color = RGB(217, 66, 53);
     } else if (m_usage >= 0.5) {
         bar_color = RGB(246, 182, 78);
@@ -121,12 +124,8 @@ CNvidiaMonitorItem::CNvidiaMonitorItem()
     const wchar_t* sample_value = GetItemValueSampleText();
     SIZE value_size;
     GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size);
-
-    const wchar_t* sample_icon = L"🔴"; // Red circle emoji
-    SIZE icon_size;
-    GetTextExtentPoint32W(hdc, sample_icon, (int)wcslen(sample_icon), &icon_size);
     
-    m_width = icon_size.cx + 4 + value_size.cx;
+    m_width = 18 + 4 + value_size.cx;
 
     SelectObject(hdc, hOldFont);
     ReleaseDC(NULL, hdc);
@@ -134,7 +133,7 @@ CNvidiaMonitorItem::CNvidiaMonitorItem()
 
 const wchar_t* CNvidiaMonitorItem::GetItemName() const
 {
-    return L"GPU/WHEA 状态";
+    return L"GPU/WHEA";
 }
 
 const wchar_t* CNvidiaMonitorItem::GetItemId() const
@@ -144,7 +143,7 @@ const wchar_t* CNvidiaMonitorItem::GetItemId() const
 
 const wchar_t* CNvidiaMonitorItem::GetItemLableText() const
 {
-    return L"🟢"; // Green circle emoji
+    return L"";
 }
 
 const wchar_t* CNvidiaMonitorItem::GetItemValueText() const
@@ -170,36 +169,33 @@ int CNvidiaMonitorItem::GetItemWidth() const
 void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
+    
+    const int LEFT_MARGIN = 2;
+    int icon_size = min(w, h) - 2;
+    int icon_y_offset = (h - icon_size) / 2;
 
-    // UPDATED: Icon logic is now a simple choice between two emojis
-    const wchar_t* icon_text = m_has_system_error ? L"🔴" : L"🟢";
-
-    COLORREF default_text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
-    SetBkMode(dc, TRANSPARENT);
-
-    SIZE current_icon_size;
-    GetTextExtentPoint32W(dc, icon_text, (int)wcslen(icon_text), &current_icon_size);
-    int icon_width = current_icon_size.cx;
-
-    RECT icon_rect = { x, y, x + icon_width, y + h };
-    RECT text_rect = { x + icon_width + 4, y, x + w, y + h };
-
-    // Emojis have their own color, so we don't need to set a text color for them
-    DrawTextW(dc, icon_text, -1, &icon_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-    // Determine the color for the value text
-    COLORREF value_text_color = default_text_color;
-    const wchar_t* current_value = GetItemValueText();
-    if (wcscmp(current_value, L"过热") == 0)
+    // --- 1. Draw the Circle with GDI+ for Anti-Aliasing ---
     {
-        value_text_color = RGB(217, 66, 53);
+        Graphics graphics(dc);
+        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+        
+        Color circleColor = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83);
+        SolidBrush circleBrush(circleColor);
+        graphics.FillEllipse(&circleBrush, x + LEFT_MARGIN, y + icon_y_offset, icon_size, icon_size);
     }
-    else if (wcscmp(current_value, L"功耗") == 0)
-    {
+
+    // --- 2. Draw the value text with GDI for font consistency ---
+    RECT text_rect = { x + LEFT_MARGIN + icon_size + 4, y, x + w, y + h };
+    COLORREF value_text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
+    const wchar_t* current_value = GetItemValueText();
+    if (wcscmp(current_value, L"过热") == 0) {
+        value_text_color = RGB(217, 66, 53);
+    } else if (wcscmp(current_value, L"功耗") == 0) {
         value_text_color = RGB(246, 182, 78);
     }
-
+    
     SetTextColor(dc, value_text_color);
+    SetBkMode(dc, TRANSPARENT);
     DrawTextW(dc, current_value, -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
@@ -225,6 +221,9 @@ CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 
 CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
 {
+    GdiplusStartupInput gdiplusStartupInput;
+    GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
+
     SYSTEM_INFO sys_info;
     GetSystemInfo(&sys_info);
     m_num_cores = sys_info.dwNumberOfProcessors;
@@ -254,6 +253,7 @@ CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
     for (auto item : m_items) delete item;
     if (m_gpu_item) delete m_gpu_item;
     ShutdownNVML();
+    GdiplusShutdown(m_gdiplusToken);
 }
 
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
@@ -273,7 +273,6 @@ void CCPUCoreBarsPlugin::DataRequired()
     UpdateGpuLimitReason();
     UpdateWheaErrorCount();
     UpdateNvlddmkmErrorCount();
-
     if (m_gpu_item) {
         bool has_error = (m_whea_error_count > 0 || m_nvlddmkm_error_count > 0);
         m_gpu_item->SetSystemErrorStatus(has_error);
@@ -284,11 +283,11 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index) {
     case TMI_NAME: return L"性能/错误监控";
-    case TMI_DESCRIPTION: return L"CPU核心使用率条形图/GPU受限/WHEA错误";
+    case TMI_DESCRIPTION: return L"CPU核心条形图/GPU受限&错误/WHEA错误";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.0.0";
+    case TMI_VERSION: return L"3.6.0";
     default: return L"";
     }
 }

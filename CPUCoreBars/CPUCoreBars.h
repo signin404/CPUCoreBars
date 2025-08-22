@@ -3,6 +3,8 @@
 #include <windows.h>
 #include <vector>
 #include <Pdh.h>
+// GDI+ headers must be included after windows.h
+#include <gdiplus.h> 
 #include "PluginInterface.h"
 #include "nvml.h"
 
@@ -100,6 +102,8 @@ private:
     nvmlDevice_t m_nvml_device;
     int m_whea_error_count = 0;
     int m_nvlddmkm_error_count = 0;
+
+    ULONG_PTR m_gdiplusToken;
 
     decltype(nvmlInit_v2)* pfn_nvmlInit;
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
