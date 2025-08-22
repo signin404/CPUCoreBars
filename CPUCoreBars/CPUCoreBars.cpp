@@ -198,11 +198,11 @@ void CCPUCoreBarsPlugin::InitNVML()
 {
     m_nvml_dll = LoadLibrary(L"nvml.dll");
     if (!m_nvml_dll) return;
-    pfn_nvmlInit = (decltype(pfn_nvmlInit))GetProcAddress(m_nvml_dll, "nvmlInit_v2");
-    pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown");
-    pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
-    pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
-    pfn_nvmlDeviceGetPerformanceState = (decltype(pfn_nvmlDeviceGetPerformanceState))GetProcAddress(m_nvml_dll, "nvmlDeviceGetPerformanceState");
+    pfn_nvmlInit = (nvmlInit_v2_t)GetProcAddress(m_nvml_dll, "nvmlInit_v2");
+    pfn_nvmlShutdown = (nvmlShutdown_t)GetProcAddress(m_nvml_dll, "nvmlShutdown");
+    pfn_nvmlDeviceGetHandleByIndex = (nvmlDeviceGetHandleByIndex_v2_t)GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
+    pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (nvmlDeviceGetCurrentClocksThrottleReasons_t)GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
+    pfn_nvmlDeviceGetPerformanceState = (nvmlDeviceGetPerformanceState_t)GetProcAddress(m_nvml_dll, "nvmlDeviceGetPerformanceState");
 
     if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || 
         !pfn_nvmlDeviceGetCurrentClocksThrottleReasons || !pfn_nvmlDeviceGetPerformanceState)
