@@ -6,14 +6,20 @@
 
 #pragma comment(lib, "pdh.lib")
 #pragma comment(lib, "wevtapi.lib")
-#pragma comment(lib, "gdiplus.lib") // <-- Link GDI+ library
+#pragma comment(lib, "gdiplus.lib")
 
-using namespace gdiplus; // <-- Use GDI+ namespace
+// CORRECTED: The namespace is 'Gdiplus' with a capital 'G'
+using namespace Gdiplus;
 
 // =================================================================
 // CCpuUsageItem implementation
 // =================================================================
-CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) : m_core_index(core_index), m_is_e_core(is_e_core) { swprintf_s(m_item_name, L"CPU Core %d", m_core_index); swprintf_s(m_item_id, L"cpu_core_%d", m_core_index); }
+CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) 
+    : m_core_index(core_index), m_is_e_core(is_e_core)
+{
+    swprintf_s(m_item_name, L"CPU Core %d", m_core_index);
+    swprintf_s(m_item_id, L"cpu_core_%d", m_core_index);
+}
 const wchar_t* CCpuUsageItem::GetItemName() const { return m_item_name; }
 const wchar_t* CCpuUsageItem::GetItemId() const { return m_item_id; }
 const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
@@ -70,7 +76,7 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
 
     RectF textRectF((REAL)(x + icon_size + 4), (REAL)y, (REAL)(w - icon_size - 4), (REAL)h);
     const wchar_t* current_value = GetItemValueText();
-    Color valueTextColor = dark_mode ? Color(255, 255, 255) : Color(0, 0, 0);
+    Color valueTextColor(dark_mode ? 255 : 0, dark_mode ? 255 : 0, dark_mode ? 255 : 0);
     if (wcscmp(current_value, L"过热") == 0) { valueTextColor.SetFromCOLORREF(RGB(217, 66, 53)); }
     else if (wcscmp(current_value, L"功耗") == 0) { valueTextColor.SetFromCOLORREF(RGB(246, 182, 78)); }
     
@@ -118,7 +124,6 @@ CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
 }
 
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index) { if (index < m_num_cores) { return m_items[index]; } if (index == m_num_cores && m_gpu_item != nullptr) { return m_gpu_item; } return nullptr; }
-
 void CCPUCoreBarsPlugin::DataRequired() { UpdateCpuUsage(); UpdateGpuLimitReason(); UpdateGpuPState(); UpdateWheaErrorCount(); UpdateNvlddmkmErrorCount(); if (m_gpu_item) { bool has_error = (m_whea_error_count > 0 || m_nvlddmkm_error_count > 0); m_gpu_item->SetSystemErrorStatus(has_error); m_gpu_item->SetPState(m_p_state); } }
 const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"CPU/GPU 高级监视器"; case TMI_DESCRIPTION: return L"显示CPU核心使用率、NVIDIA GPU状态及系统硬件错误。"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"3.2.0"; default: return L""; } }
 
