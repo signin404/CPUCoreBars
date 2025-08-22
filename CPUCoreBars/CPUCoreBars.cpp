@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp
+﻿// CPUCoreBars/CPUCoreBars.cpp
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -29,7 +29,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 // =================================================================
 // CNvidiaMonitorItem implementation
 // =================================================================
-CNvidiaMonitorItem::CNvidiaMonitorItem() { wcscpy_s(m_value_text, L"N/A"); HDC hdc = GetDC(NULL); HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); HFONT hOldFont = (HFONT)SelectObject(hdc, hFont); const wchar_t* sample_value = GetItemValueSampleText(); SIZE value_size; GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size); m_width = 20 + 4 + value_size.cx; SelectObject(hdc, hOldFont); ReleaseDC(NULL, hdc); }
+CNvidiaMonitorItem::CNvidiaMonitorItem() { wcscpy_s(m_value_text, L"N/A"); HDC hdc = GetDC(NULL); HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); HFONT hOldFont = (HFONT)SelectObject(hdc, hFont); const wchar_t* sample_value = GetItemValueSampleText(); SIZE value_size; GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size); m_width = 18 + 4 + value_size.cx; SelectObject(hdc, hOldFont); ReleaseDC(NULL, hdc); }
 const wchar_t* CNvidiaMonitorItem::GetItemName() const { return L"GPU/系统 状态"; }
 const wchar_t* CNvidiaMonitorItem::GetItemId() const { return L"gpu_system_status"; }
 const wchar_t* CNvidiaMonitorItem::GetItemLableText() const { return L""; }
@@ -42,49 +42,46 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
 {
     HDC dc = (HDC)hDC;
     
-    int icon_size = min(w, h) - 2;
-    int icon_y_offset = (h - icon_size) / 2;
-    RectF iconRectF((REAL)x, (REAL)(y + icon_y_offset), (REAL)icon_size, (REAL)icon_size);
+    // Define a 2px left margin
+    const int LEFT_MARGIN = 2;
 
     // --- 1. Draw the Circle with GDI+ for Anti-Aliasing ---
     {
         Graphics graphics(dc);
         graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+
+        int icon_size = min(w, h) - 2;
+        int icon_y_offset = (h - icon_size) / 2;
         
         Color circleColor = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83);
         SolidBrush circleBrush(circleColor);
-        graphics.FillEllipse(&circleBrush, iconRectF);
+        // Apply the left margin to the x coordinate
+        graphics.FillEllipse(&circleBrush, x + LEFT_MARGIN, y + icon_y_offset, icon_size, icon_size);
     }
 
-    // --- 2. Draw the P-State number with GDI+ for Outlining ---
+    // --- 2. Draw the P-State number with GDI for font consistency ---
+    int icon_size = min(w, h) - 2;
+    int icon_y_offset = (h - icon_size) / 2;
+    // Apply the left margin to the icon's bounding box
+    RECT icon_rect = { x + LEFT_MARGIN, y + icon_y_offset, x + LEFT_MARGIN + icon_size, y + icon_y_offset + icon_size };
+
     if (m_p_state != NVML_PSTATE_UNKNOWN)
     {
-        Graphics graphics(dc);
-        graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        graphics.SetTextRenderingHint(TextRenderingHintAntiAlias);
-
         wchar_t p_state_text[4];
         swprintf_s(p_state_text, L"%d", m_p_state);
 
-        FontFamily fontFamily(L"Microsoft YaHei");
-        StringFormat strFormat;
-        strFormat.SetAlignment(StringAlignmentCenter);
-        strFormat.SetLineAlignment(StringAlignmentCenter);
-        
-        GraphicsPath path;
-        path.AddString(p_state_text, -1, &fontFamily, FontStyleBold, 11, iconRectF, &strFormat);
-
-        // Draw the black outline
-        Pen blackPen(Color(0, 0, 0), 1.5f);
-        graphics.DrawPath(&blackPen, &path);
-
-        // Fill the white text
-        SolidBrush whiteBrush(Color(255, 255, 255));
-        graphics.FillPath(&whiteBrush, &path);
+        HFONT hFont = CreateFontW(-10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei");
+        HGDIOBJ hOldFont = SelectObject(dc, hFont);
+        SetTextColor(dc, RGB(255, 255, 255));
+        SetBkMode(dc, TRANSPARENT);
+        DrawTextW(dc, p_state_text, -1, &icon_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(dc, hOldFont);
+        DeleteObject(hFont);
     }
 
     // --- 3. Draw the value text with GDI for font consistency ---
-    RECT text_rect = { x + icon_size + 4, y, x + w, y + h };
+    // Apply the left margin to the text's starting position
+    RECT text_rect = { x + LEFT_MARGIN + icon_size + 4, y, x + w, y + h };
     COLORREF value_text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
     const wchar_t* current_value = GetItemValueText();
     if (wcscmp(current_value, L"过热") == 0) { value_text_color = RGB(217, 66, 53); }
