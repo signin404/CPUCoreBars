@@ -9,7 +9,6 @@
 // CCpuUsageItem implementation (no changes, can be collapsed)
 // =================================================================
 // ... (The entire implementation of CCpuUsageItem from the previous step is here)
-// ... (It is unchanged, so I'm omitting it for brevity)
 CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) : m_core_index(core_index), m_is_e_core(is_e_core) { swprintf_s(m_item_name, L"CPU Core %d", m_core_index); swprintf_s(m_item_id, L"cpu_core_%d", m_core_index); }
 const wchar_t* CCpuUsageItem::GetItemName() const { return m_item_name; }
 const wchar_t* CCpuUsageItem::GetItemId() const { return m_item_id; }
@@ -24,18 +23,21 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 
 
 // =================================================================
-// NEW: CNvidiaLimitReasonItem implementation
+// UPDATED: CNvidiaLimitReasonItem implementation
 // =================================================================
 CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
 {
     wcscpy_s(m_value_text, L"N/A");
 }
 
-const wchar_t* CNvidiaLimitReasonItem::GetItemName() const { return L"NVIDIA Limit Reason"; }
+const wchar_t* CNvidiaLimitReasonItem::GetItemName() const { return L"NVIDIA 限制原因"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemId() const { return L"nvidia_limit_reason"; }
-const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"GPU Limit:"; }
+const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"GPU限制:"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const { return m_value_text; }
-const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"HW Thermal Slowdown"; }
+
+// UPDATED: Provide the longest possible string for auto-width calculation
+const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"硬过热"; }
+
 bool CNvidiaLimitReasonItem::IsCustomDraw() const { return false; }
 int CNvidiaLimitReasonItem::GetItemWidth() const { return 0; }
 void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) { }
@@ -43,7 +45,7 @@ void CNvidiaLimitReasonItem::SetValue(const wchar_t* value) { wcscpy_s(m_value_t
 
 
 // =================================================================
-// CCPUCoreBarsPlugin implementation (updated for NVML)
+// CCPUCoreBarsPlugin implementation
 // =================================================================
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 {
@@ -51,7 +53,6 @@ CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
     return instance;
 }
 
-// UPDATED: Constructor now also initializes NVML
 CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
 {
     // --- CPU Initialization ---
@@ -80,33 +81,21 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
     InitNVML();
 }
 
-// UPDATED: Destructor now also shuts down NVML
 CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
 {
-    // CPU cleanup
     if (m_query) PdhCloseQuery(m_query);
     for (auto item : m_items) delete item;
-
-    // GPU cleanup
     if (m_gpu_item) delete m_gpu_item;
     ShutdownNVML();
 }
 
-// UPDATED: GetItem now returns CPU items OR the GPU item
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
 {
-    if (index < m_num_cores)
-    {
-        return m_items[index];
-    }
-    else if (index == m_num_cores && m_gpu_item != nullptr)
-    {
-        return m_gpu_item;
-    }
+    if (index < m_num_cores) return m_items[index];
+    if (index == m_num_cores && m_gpu_item != nullptr) return m_gpu_item;
     return nullptr;
 }
 
-// UPDATED: DataRequired now updates both CPU and GPU data
 void CCPUCoreBarsPlugin::DataRequired()
 {
     UpdateCpuUsage();
@@ -117,65 +106,40 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index)
     {
-    case TMI_NAME: return L"CPU/GPU Performance Monitor";
-    case TMI_DESCRIPTION: return L"Displays CPU core bars and NVIDIA GPU performance limit reasons.";
+    case TMI_NAME: return L"CPU/GPU 性能监视器";
+    case TMI_DESCRIPTION: return L"显示CPU核心使用率和NVIDIA GPU性能限制原因";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"2.0.0"; // Major version change
+    case TMI_VERSION: return L"2.1.0"; // Version bump
     default: return L"";
     }
 }
 
-// NEW: NVML Initialization Logic
 void CCPUCoreBarsPlugin::InitNVML()
 {
     m_nvml_dll = LoadLibrary(L"nvml.dll");
     if (!m_nvml_dll) return;
-
     pfn_nvmlInit = (decltype(pfn_nvmlInit))GetProcAddress(m_nvml_dll, "nvmlInit_v2");
     pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown");
     pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
     pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
-
-    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons)
-    {
-        ShutdownNVML();
-        return;
-    }
-
-    if (pfn_nvmlInit() != NVML_SUCCESS)
-    {
-        ShutdownNVML();
-        return;
-    }
-
-    if (pfn_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS)
-    {
-        ShutdownNVML();
-        return;
-    }
-
+    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons) { ShutdownNVML(); return; }
+    if (pfn_nvmlInit() != NVML_SUCCESS) { ShutdownNVML(); return; }
+    if (pfn_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS) { ShutdownNVML(); return; }
     m_nvml_initialized = true;
     m_gpu_item = new CNvidiaLimitReasonItem();
 }
 
-// NEW: NVML Shutdown Logic
 void CCPUCoreBarsPlugin::ShutdownNVML()
 {
-    if (m_nvml_initialized && pfn_nvmlShutdown)
-    {
-        pfn_nvmlShutdown();
-    }
-    if (m_nvml_dll)
-    {
-        FreeLibrary(m_nvml_dll);
-    }
+    if (m_nvml_initialized && pfn_nvmlShutdown) pfn_nvmlShutdown();
+    if (m_nvml_dll) FreeLibrary(m_nvml_dll);
     m_nvml_initialized = false;
     m_nvml_dll = nullptr;
 }
 
-// NEW: GPU Data Update Logic
+// UPDATED: GPU Data Update Logic with Chinese translations
 void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
 {
     if (!m_nvml_initialized || !m_gpu_item) return;
@@ -183,25 +147,26 @@ void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
     unsigned long long reasons = 0;
     if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS)
     {
+        // Check with priority, from most critical to least
         if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) {
-            m_gpu_item->SetValue(L"HW Thermal Slowdown");
+            m_gpu_item->SetValue(L"硬过热");
         } else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) {
-            m_gpu_item->SetValue(L"HW Power Brake");
-        } else if (reasons & nvmlClocksThrottleReasonSwPowerCap) {
-            m_gpu_item->SetValue(L"SW Power Cap");
+            m_gpu_item->SetValue(L"硬功耗"); // VOp Limit
         } else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) {
-            m_gpu_item->SetValue(L"SW Thermal Slowdown");
+            m_gpu_item->SetValue(L"软过热");
+        } else if (reasons & nvmlClocksThrottleReasonSwPowerCap) {
+            m_gpu_item->SetValue(L"软功耗"); // VRel Limit
         } else if (reasons & nvmlClocksThrottleReasonGpuIdle) {
-            m_gpu_item->SetValue(L"Idle");
+            m_gpu_item->SetValue(L"空闲");
         } else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) {
-            m_gpu_item->SetValue(L"Active");
+            m_gpu_item->SetValue(L"无限制");
         } else {
-            m_gpu_item->SetValue(L"None");
+            m_gpu_item->SetValue(L"无"); // None
         }
     }
     else
     {
-        m_gpu_item->SetValue(L"Error");
+        m_gpu_item->SetValue(L"错误");
     }
 }
 
