@@ -54,7 +54,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
     if (m_core_index >= 12 && m_core_index <= 19) { bar_color = RGB(217, 66, 53); }
     else if (m_core_index % 2 == 1) { bar_color = RGB(38, 160, 218); }
     else { bar_color = RGB(118, 202, 83); }
-    if (m_usage >= 0.8) { bar_color = RGB(217, 66, 53); }
+    if (m_usage >= 0.9) { bar_color = RGB(217, 66, 53); }
     else if (m_usage >= 0.5) { bar_color = RGB(246, 182, 78); }
     int bar_height = static_cast<int>(h * m_usage);
     if (bar_height > 0) {
@@ -107,7 +107,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     HDC dc = (HDC)hDC;
     
     SIZE icon_size;
-    GetTextExtentPoint32W(dc, L"99", 2, &icon_size);
+    GetTextExtentPoint32W(dc, L"99", 3, &icon_size);
     int icon_width = icon_size.cx;
 
     RECT icon_rect = { x, y, x + icon_width, y + h };
@@ -125,7 +125,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
             swprintf_s(whea_text, L"%d", m_whea_count);
         }
         
-        SetTextColor(dc, RGB(255, 0, 0));
+        SetTextColor(dc, RGB(217, 66, 53));
         DrawTextW(dc, whea_text, -1, &icon_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     else
@@ -242,11 +242,11 @@ void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
     if (!m_nvml_initialized || !m_gpu_item) return;
     unsigned long long reasons = 0;
     if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) {
-        if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"硬过热"); }
-        else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"硬功耗"); }
-        else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"软功耗"); }
-        else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"软过热"); }
-        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L" 空闲"); }
+        if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
+        else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
+        else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"功耗"); }
+        else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"功耗"); }
+        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L"空闲"); }
         else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L"无限制"); }
         else { m_gpu_item->SetValue(L"无"); }
     }
