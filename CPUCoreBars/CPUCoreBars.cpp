@@ -120,7 +120,7 @@ void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, boo
     {
         wchar_t whea_text[10];
         if (m_whea_count > 5) {
-            wcscpy_s(whea_text, L"…");
+            wcscpy_s(whea_text, L"⚠");
         } else {
             swprintf_s(whea_text, L"%d", m_whea_count);
         }
@@ -246,7 +246,7 @@ void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
         else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"硬功耗"); }
         else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"软功耗"); }
         else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"软过热"); }
-        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L"空闲"); }
+        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L" 空闲"); }
         else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L"无限制"); }
         else { m_gpu_item->SetValue(L"无"); }
     }
