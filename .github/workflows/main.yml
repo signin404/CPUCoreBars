@@ -20,13 +20,16 @@ jobs:
     - name: Set up MSBuild
       uses: microsoft/setup-msbuild@v2
 
+    # UPDATED: 在 msbuild 命令中添加 C++ 编译器选项
     - name: Build the solution
-      run: msbuild CPUCoreBars.sln -p:Configuration=Release -p:Platform=x64
+      run: >
+        msbuild CPUCoreBars.sln 
+        -p:Configuration=Release 
+        -p:Platform=x64 
+        -p:ClCompile_AdditionalOptions="/utf-8"
 
-    # 修正了 DLL 的路径
     - name: Upload DLL artifact
       uses: actions/upload-artifact@v4
       with:
         name: cpu-core-bars-plugin-dll
-        # 修正：移除项目文件夹名 CPUCoreBars/
         path: x64/Release/CPUCoreBars.dll
