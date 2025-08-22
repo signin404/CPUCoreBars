@@ -30,3 +30,4 @@ jobs:
         name: cpu-core-bars-plugin-dll
         # 修正：移除项目文件夹名 CPUCoreBars/
         path: x64/Release/CPUCoreBars.dll
+        
