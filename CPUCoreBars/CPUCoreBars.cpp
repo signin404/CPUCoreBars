@@ -23,22 +23,24 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 
 
 // =================================================================
-// UPDATED: CNvidiaLimitReasonItem implementation (now custom draw)
+// UPDATED: CNvidiaLimitReasonItem implementation (with pixel-perfect icon)
 // =================================================================
 CNvidiaLimitReasonItem::CNvidiaLimitReasonItem()
 {
     wcscpy_s(m_value_text, L"N/A");
 
-    // Calculate the required width once during initialization
+    // UPDATED: Recalculate width based on the new layout
     HDC hdc = GetDC(NULL);
     HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
     HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
 
-    // Combine the label and the longest possible value to measure
-    std::wstring sample_text = std::wstring(GetItemLableText()) + L" " + GetItemValueSampleText();
+    // Measure the longest value text
+    const wchar_t* sample_value = GetItemValueSampleText();
     SIZE text_size;
-    GetTextExtentPoint32W(hdc, sample_text.c_str(), sample_text.length(), &text_size);
-    m_width = text_size.cx + 4; // Add a few pixels for padding
+    GetTextExtentPoint32W(hdc, sample_value, wcslen(sample_value), &text_size);
+
+    // Width = 16px (icon) + 4px (padding) + text width
+    m_width = 16 + 4 + text_size.cx;
 
     SelectObject(hdc, hOldFont);
     ReleaseDC(NULL, hdc);
@@ -49,29 +51,44 @@ const wchar_t* CNvidiaLimitReasonItem::GetItemId() const { return L"nvidia_limit
 const wchar_t* CNvidiaLimitReasonItem::GetItemLableText() const { return L"❄"; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueText() const { return m_value_text; }
 const wchar_t* CNvidiaLimitReasonItem::GetItemValueSampleText() const { return L"硬过热"; }
-
-// UPDATED: Switch to custom draw mode
 bool CNvidiaLimitReasonItem::IsCustomDraw() const { return true; }
-
-// UPDATED: Return the pre-calculated width
 int CNvidiaLimitReasonItem::GetItemWidth() const { return m_width; }
 
-// UPDATED: Implement the drawing logic
+// UPDATED: Implement pixel-perfect drawing logic
 void CNvidiaLimitReasonItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
 
-    // Combine label and value into one string
-    std::wstring text_to_draw = std::wstring(GetItemLableText()) + L" " + GetItemValueText();
+    // --- 1. Draw the Icon in a 16x16 area ---
+    RECT icon_rect = { x, y, x + 16, y + h };
 
-    // Set text color based on dark mode
+    // Create a font that is exactly 16 pixels high
+    HFONT hIconFont = CreateFontW(
+        -16,                           // nHeight (negative for pixel height)
+        0,                             // nWidth
+        0, 0,                          // nEscapement, nOrientation
+        FW_NORMAL,                     // fnWeight
+        FALSE, FALSE, FALSE,           // fdwItalic, fdwUnderline, fdwStrikeOut
+        DEFAULT_CHARSET,               // fdwCharSet
+        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+        DEFAULT_PITCH | FF_DONTCARE,
+        L"Segoe UI Symbol"             // Font name
+    );
+
+    HGDIOBJ hOldFont = SelectObject(dc, hIconFont);
     COLORREF text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
     SetTextColor(dc, text_color);
     SetBkMode(dc, TRANSPARENT);
 
-    // Draw the text
-    RECT rect = { x, y, x + w, y + h };
-    DrawTextW(dc, text_to_draw.c_str(), -1, &rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    // Draw the icon centered in its 16x16 box
+    DrawTextW(dc, GetItemLableText(), -1, &icon_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+    // --- 2. Draw the Value Text in the remaining area ---
+    SelectObject(dc, hOldFont); // Restore the default font
+    DeleteObject(hIconFont);    // Clean up the created font
+
+    RECT text_rect = { x + 16 + 4, y, x + w, y + h }; // Area right of the icon + padding
+    DrawTextW(dc, GetItemValueText(), -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
 void CNvidiaLimitReasonItem::SetValue(const wchar_t* value) { wcscpy_s(m_value_text, value); }
@@ -86,7 +103,7 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin() { SYSTEM_INFO sys_info; GetSystemInfo(&
 CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin() { if (m_query) PdhCloseQuery(m_query); for (auto item : m_items) delete item; if (m_gpu_item) delete m_gpu_item; ShutdownNVML(); }
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index) { if (index < m_num_cores) return m_items[index]; if (index == m_num_cores && m_gpu_item != nullptr) return m_gpu_item; return nullptr; }
 void CCPUCoreBarsPlugin::DataRequired() { UpdateCpuUsage(); UpdateGpuLimitReason(); }
-const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"CPU/GPU 性能监视器"; case TMI_DESCRIPTION: return L"显示CPU核心使用率和NVIDIA GPU性能限制原因。"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"2.3.0"; default: return L""; } }
+const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"CPU/GPU 性能监视器"; case TMI_DESCRIPTION: return L"显示CPU核心使用率和NVIDIA GPU性能限制原因。"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"2.4.0"; default: return L""; } }
 void CCPUCoreBarsPlugin::InitNVML() { m_nvml_dll = LoadLibrary(L"nvml.dll"); if (!m_nvml_dll) return; pfn_nvmlInit = (decltype(pfn_nvmlInit))GetProcAddress(m_nvml_dll, "nvmlInit_v2"); pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown"); pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2"); pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons"); if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons) { ShutdownNVML(); return; } if (pfn_nvmlInit() != NVML_SUCCESS) { ShutdownNVML(); return; } if (pfn_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS) { ShutdownNVML(); return; } m_nvml_initialized = true; m_gpu_item = new CNvidiaLimitReasonItem(); }
 void CCPUCoreBarsPlugin::ShutdownNVML() { if (m_nvml_initialized && pfn_nvmlShutdown) pfn_nvmlShutdown(); if (m_nvml_dll) FreeLibrary(m_nvml_dll); m_nvml_initialized = false; m_nvml_dll = nullptr; }
 void CCPUCoreBarsPlugin::UpdateGpuLimitReason() { if (!m_nvml_initialized || !m_gpu_item) return; unsigned long long reasons = 0; if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) { if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"硬过热"); } else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"硬功耗"); } else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"软功耗"); } else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"软过热"); } else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L"空闲"); } else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L"无限制"); } else { m_gpu_item->SetValue(L"无"); } } else { m_gpu_item->SetValue(L"错误"); } }
