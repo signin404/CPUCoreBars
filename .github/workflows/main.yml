@@ -1,6 +1,6 @@
 # .github/workflows/build.yml
 
-name: Build CPUCoreBars Plugin
+name: Build Plugin and Tester
 
 on:
   push:
@@ -20,14 +20,31 @@ jobs:
     - name: Set up MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Build the solution
+    # 新增步骤：下载并配置 NVML SDK
+    # 这将为 Tester 项目提供编译所需的 nvml.h 和 nvml.lib
+    - name: Download and setup NVML SDK
+      run: |
+        Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/nvml/sdk/nvml-sdk-1.0.0.zip" -OutFile "nvml_sdk.zip"
+        Expand-Archive -Path "nvml_sdk.zip" -DestinationPath "nvml_sdk_extracted"
+        New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\nvml"
+        Copy-Item -Path "nvml_sdk_extracted\NVML-SDK-1.0.0\include\nvml.h" -Destination "${{ github.workspace }}\nvml\nvml.h"
+        Copy-Item -Path "nvml_sdk_extracted\NVML-SDK-1.0.0\lib\nvml.lib" -Destination "${{ github.workspace }}\nvml\nvml.lib"
+        Write-Host "NVML SDK setup complete."
+      shell: pwsh
+
+    # 修改了步骤名称以示区分
+    - name: Build the Plugin solution
       run: msbuild CPUCoreBars.sln -p:Configuration=Release -p:Platform=x64
 
-    # 修正了 DLL 的路径
-    - name: Upload DLL artifact
+    # 新增步骤：编译 Tester 测试程序
+    - name: Build the Tester application
+      run: msbuild Tester/Tester.vcxproj -p:Configuration=Release -p:Platform=x64
+
+    # 修改了上传步骤，现在会同时打包 DLL 和 EXE
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: cpu-core-bars-plugin-dll
-        # 修正：移除项目文件夹名 CPUCoreBars/
-        path: x64/Release/CPUCoreBars.dll
-        
+        name: plugin-and-tester
+        path: |
+          x64/Release/CPUCoreBars.dll
+          x64/Release/Tester.exe
