@@ -1,74 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <!-- 新增：项目配置，这是解决您错误的关键 -->
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Release|x64">
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <!-- 修改点：项目GUID和名称已更新为您自己的项目 -->
-    <ProjectGuid>{f1e2d3c4-b5a6-7890-1234-abcdef123456}</ProjectGuid> <!-- 注意：您的项目GUID可能不同，但这没关系 -->
+    <ProjectGuid>{f1e2d3c4-b5a6-7890-1234-abcdef123456}</ProjectGuid>
     <RootNamespace>CPUCoreBars</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
-
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-
-  <!-- 这是'Release|x64'的配置定义 -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <!-- 修改点：项目类型从 Application (.exe) 改为 DynamicLibrary (.dll) -->
-    <ConfigurationType>DynamicLibrary</ConfigurationType> 
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
-
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  
-  <!-- 新增：为 Release|x64 设置输出和中间目录 -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
-  
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <!-- 修改点：预处理器定义已更新为DLL项目所需 -->
       <PreprocessorDefinitions>NDEBUG;CPUCOREBARS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <!-- CPUCoreBars项目不需要这个，因为它自己的头文件就在本地 -->
-      <!-- <AdditionalIncludeDirectories>... -->
+      <!-- 修复点：指向新的顶层 include 文件夹 -->
+      <AdditionalIncludeDirectories>$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <!-- 修改点：子系统从 Console 改为 Windows，适用于DLL -->
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <!-- 新增：链接您的插件所需的所有库 -->
       <AdditionalDependencies>pdh.lib;gdiplus.lib;kernel32.lib;user32.lib;gdi32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  
-  <!-- 修改点：文件列表已更新为您插件的源文件和头文件 -->
   <ItemGroup>
     <ClInclude Include="CPUCoreBars.h" />
-    <ClInclude Include="nvml.h" />
     <ClInclude Include="PluginInterface.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CPUCoreBars.cpp" />
   </ItemGroup>
-
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
