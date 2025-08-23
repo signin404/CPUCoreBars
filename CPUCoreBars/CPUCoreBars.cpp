@@ -1,4 +1,4 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本 (ETW + NVML ECC)
+﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本 (ETW + NVML ECC) - CORRECTED
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -439,8 +439,11 @@ DWORD WINAPI CCPUCoreBarsPlugin::EtwThreadProc(LPVOID lpParam)
 {
     CCPUCoreBarsPlugin* pThis = static_cast<CCPUCoreBarsPlugin*>(lpParam);
     
+    // FIX: Create a mutable copy of the logger name for the non-const LPWSTR member.
+    wchar_t loggerNameBuffer[] = KERNEL_LOGGER_NAMEW;
+
     EVENT_TRACE_LOGFILEW trace_logfile = { 0 };
-    trace_logfile.LoggerName = KERNEL_LOGGER_NAMEW;
+    trace_logfile.LoggerName = loggerNameBuffer; // Use the mutable copy
     trace_logfile.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_EVENT_RECORD;
     trace_logfile.EventRecordCallback = EtwEventCallback;
 
