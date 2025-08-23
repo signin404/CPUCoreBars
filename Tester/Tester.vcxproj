@@ -34,16 +34,14 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <!-- 路径指向顶层 include 文件夹 -->
-      <AdditionalIncludeDirectories>$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- 已移除 AdditionalIncludeDirectories -->
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <!-- 路径指向顶层 include 文件夹 -->
-      <AdditionalLibraryDirectories>$(SolutionDir)include;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <!-- 已移除 AdditionalLibraryDirectories -->
       <AdditionalDependencies>nvml.lib;advapi32.lib;kernel32.lib;user32.lib;gdi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
