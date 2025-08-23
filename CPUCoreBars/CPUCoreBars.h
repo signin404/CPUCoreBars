@@ -146,5 +146,5 @@ private:
     DWORD m_cached_whea_count;
     DWORD m_cached_nvlddmkm_count;
     DWORD m_last_error_check_time;
-    static const DWORD ERROR_CHECK_INTERVAL_MS = 60000; // 30秒检查间隔
+    static const DWORD ERROR_CHECK_INTERVAL_MS = 60000; // 60秒检查间隔
 };
