@@ -1,4 +1,5 @@
-// Tester/Tester.cpp
+// Tester/Tester.cpp - FINAL CORRECTED VERSION
+
 #include <windows.h>
 #include <stdio.h>
 #include <conio.h>
@@ -6,7 +7,6 @@
 #include "nvml.h"     // NVML header
 
 #pragma comment(lib, "advapi32.lib") // For ETW functions
-#pragma comment(lib, "nvml.lib")     // For NVML functions
 
 // This GUID MUST match the one being listened for in your plugin.
 // {C2D578F2-5948-4527-9598-345A212C4ECE}
@@ -23,9 +23,25 @@ void TestWheaInjection() {
         return;
     }
 
+    // =================================================================
+    // FIX: Create a valid event descriptor.
+    // The EventWrite function requires a non-null pointer to a descriptor.
+    // =================================================================
+    EVENT_DESCRIPTOR eventDescriptor = {0};
+    eventDescriptor.Id = 1;         // A simple, non-zero ID for the event
+    eventDescriptor.Version = 0;
+    eventDescriptor.Channel = 0;
+    eventDescriptor.Level = 4;      // 4 corresponds to "Warning" level
+    eventDescriptor.Opcode = 0;
+    eventDescriptor.Task = 0;
+    eventDescriptor.Keyword = 0;
+
     printf("Injecting fake WHEA ETW event...\n");
-    // Fire a simple event. The plugin only checks for the provider, not the content.
-    status = EventWrite(providerHandle, 0, 0, NULL);
+    
+    // =================================================================
+    // FIX: Pass the address of the valid descriptor.
+    // =================================================================
+    status = EventWrite(providerHandle, &eventDescriptor, 0, NULL);
 
     if (status == ERROR_SUCCESS) {
         printf("SUCCESS: Event sent. Check the plugin icon; it should turn RED.\n");
