@@ -34,22 +34,21 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;CPUCOREBARS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <!-- 路径指向顶层 include 文件夹 -->
-      <AdditionalIncludeDirectories>$(SolutionDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+       <!-- 已移除 AdditionalIncludeDirectories -->
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <!-- 链接器同样需要知道库文件的位置 -->
-      <AdditionalLibraryDirectories>$(SolutionDir)include;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <!-- 已移除 AdditionalLibraryDirectories -->
       <AdditionalDependencies>pdh.lib;gdiplus.lib;nvml.lib;kernel32.lib;user32.lib;gdi32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="CPUCoreBars.h" />
     <ClInclude Include="PluginInterface.h" />
+    <ClInclude Include="nvml.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CPUCoreBars.cpp" />
