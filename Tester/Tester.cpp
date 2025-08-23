@@ -1,4 +1,4 @@
-// Tester/Tester.cpp - Final Cleaned Version
+// Tester/Tester.cpp - Final Robust Version
 
 #include <windows.h>
 #include <stdio.h>
@@ -8,42 +8,29 @@
 
 #pragma comment(lib, "advapi32.lib")
 
-// This GUID MUST match the one being listened for in your plugin.
-// {C2D578F2-5948-4527-9598-345A212C4ECE}
 static const GUID WHEA_PROVIDER_GUID =
 { 0xc2d578f2, 0x5948, 0x4527, { 0x95, 0x98, 0x34, 0x5a, 0x21, 0x2c, 0x4e, 0xce } };
 
-// Function to inject a fake WHEA event via ETW
+// ... (TestWheaInjection function remains the same) ...
 void TestWheaInjection() {
     REGHANDLE providerHandle = 0;
     ULONG status = EventRegister(&WHEA_PROVIDER_GUID, NULL, NULL, &providerHandle);
-
     if (status != ERROR_SUCCESS) {
         printf("ETW EventRegister failed with error %lu. Is the program running as Administrator?\n", status);
         return;
     }
-
     EVENT_DESCRIPTOR eventDescriptor = {0};
-    eventDescriptor.Id = 1;
-    eventDescriptor.Version = 0;
-    eventDescriptor.Channel = 0;
-    eventDescriptor.Level = 4; // "Warning" level
-    eventDescriptor.Opcode = 0;
-    eventDescriptor.Task = 0;
-    eventDescriptor.Keyword = 0;
-
+    eventDescriptor.Id = 1; eventDescriptor.Level = 4;
     printf("Injecting fake WHEA ETW event...\n");
-    
     status = EventWrite(providerHandle, &eventDescriptor, 0, NULL);
-
     if (status == ERROR_SUCCESS) {
         printf("SUCCESS: Event sent. After the next check interval (up to 60s), the plugin icon should turn RED.\n");
     } else {
         printf("FAIL: EventWrite failed with error %lu.\n", status);
     }
-
     EventUnregister(providerHandle);
 }
+
 
 // Function to query comprehensive GPU status via NVML
 void TestNvmlQuery() {
@@ -55,6 +42,7 @@ void TestNvmlQuery() {
         return;
     }
 
+    // Define function pointer types
     typedef nvmlReturn_t(*nvmlInit_t)(void);
     typedef nvmlReturn_t(*nvmlShutdown_t)(void);
     typedef nvmlReturn_t(*nvmlDeviceGetHandleByIndex_t)(unsigned int, nvmlDevice_t*);
@@ -62,6 +50,7 @@ void TestNvmlQuery() {
     typedef nvmlReturn_t(*nvmlDeviceGetRetiredPages_t)(nvmlDevice_t, nvmlPageRetirementCause_t, unsigned int*, unsigned long long*);
     typedef nvmlReturn_t(*nvmlDeviceGetLastXid_t)(nvmlDevice_t, unsigned int*, unsigned long long*);
 
+    // Get function pointers
     nvmlInit_t pfn_nvmlInit = (nvmlInit_t)GetProcAddress(nvml_dll, "nvmlInit_v2");
     nvmlShutdown_t pfn_nvmlShutdown = (nvmlShutdown_t)GetProcAddress(nvml_dll, "nvmlShutdown");
     nvmlDeviceGetHandleByIndex_t pfn_nvmlDeviceGetHandleByIndex = (nvmlDeviceGetHandleByIndex_t)GetProcAddress(nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
@@ -69,8 +58,9 @@ void TestNvmlQuery() {
     nvmlDeviceGetRetiredPages_t pfn_nvmlDeviceGetRetiredPages = (nvmlDeviceGetRetiredPages_t)GetProcAddress(nvml_dll, "nvmlDeviceGetRetiredPages");
     nvmlDeviceGetLastXid_t pfn_nvmlDeviceGetLastXid = (nvmlDeviceGetLastXid_t)GetProcAddress(nvml_dll, "nvmlDeviceGetLastXid");
 
-    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetTotalEccErrors || !pfn_nvmlDeviceGetRetiredPages || !pfn_nvmlDeviceGetLastXid) {
-        printf("FAIL: Couldn't find all required NVML functions in nvml.dll.\n");
+    // Check only for the most essential functions
+    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex) {
+        printf("FAIL: Couldn't find essential NVML functions. Your driver is likely very old.\n");
         FreeLibrary(nvml_dll);
         return;
     }
@@ -91,44 +81,61 @@ void TestNvmlQuery() {
 
     printf("SUCCESS: Query complete.\n");
     printf("--------------------------------------------------\n");
+    printf("Driver Feature Support Report:\n");
 
-    unsigned long long corrected = 0, uncorrected = 0;
-    nvmlReturn_t ecc_status = pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_CORRECTED, NVML_VOLATILE_ECC, &corrected);
-    if (ecc_status == NVML_SUCCESS) {
-        pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_UNCORRECTED, NVML_VOLATILE_ECC, &uncorrected);
-        printf("  > Volatile Corrected ECC Errors  : %llu (If > 0, plugin turns ORANGE)\n", corrected);
-        printf("  > Volatile Uncorrected ECC Errors: %llu (If > 0, plugin turns RED)\n", uncorrected);
-    } else if (ecc_status == NVML_ERROR_NOT_SUPPORTED) {
-        printf("  > ECC Error Reporting            : Not Supported\n");
+    // 1. ECC Errors
+    if (pfn_nvmlDeviceGetTotalEccErrors) {
+        unsigned long long corrected = 0, uncorrected = 0;
+        nvmlReturn_t ecc_status = pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_CORRECTED, NVML_VOLATILE_ECC, &corrected);
+        if (ecc_status == NVML_SUCCESS) {
+            pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_UNCORRECTED, NVML_VOLATILE_ECC, &uncorrected);
+            printf("  > Volatile Corrected ECC Errors  : %llu\n", corrected);
+            printf("  > Volatile Uncorrected ECC Errors: %llu\n", uncorrected);
+        } else if (ecc_status == NVML_ERROR_NOT_SUPPORTED) {
+            printf("  > ECC Error Reporting            : Not Supported on this GPU\n");
+        } else {
+            printf("  > ECC Error Reporting            : Error querying (code: %d)\n", ecc_status);
+        }
     } else {
-        printf("  > ECC Error Reporting            : Error querying (code: %d)\n", ecc_status);
+        printf("  > ECC Error Reporting            : Function not found in nvml.dll (Driver too old)\n");
     }
 
-    unsigned int retired_page_count = 0;
-    nvmlReturn_t retired_status = pfn_nvmlDeviceGetRetiredPages(device, NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS, &retired_page_count, NULL);
-     if (retired_status == NVML_SUCCESS) {
-        printf("  > Retired Pages (Remapped Rows)  : %u (If > 0, plugin turns RED)\n", retired_page_count);
-    } else if (retired_status == NVML_ERROR_NOT_SUPPORTED) {
-        printf("  > Retired Pages Reporting        : Not Supported\n");
+    // 2. Retired Pages
+    if (pfn_nvmlDeviceGetRetiredPages) {
+        unsigned int retired_page_count = 0;
+        nvmlReturn_t retired_status = pfn_nvmlDeviceGetRetiredPages(device, NVML_PAGE_RERETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS, &retired_page_count, NULL);
+         if (retired_status == NVML_SUCCESS) {
+            printf("  > Retired Pages (Remapped Rows)  : %u\n", retired_page_count);
+        } else if (retired_status == NVML_ERROR_NOT_SUPPORTED) {
+            printf("  > Retired Pages Reporting        : Not Supported on this GPU\n");
+        } else {
+            printf("  > Retired Pages Reporting        : Error querying (code: %d)\n", retired_status);
+        }
     } else {
-        printf("  > Retired Pages Reporting        : Error querying (code: %d)\n", retired_status);
+        printf("  > Retired Pages Reporting        : Function not found in nvml.dll (Driver too old)\n");
     }
 
-    unsigned int last_xid = 0;
-    pfn_nvmlDeviceGetLastXid(device, &last_xid, NULL);
-    printf("  > Last Xid Error Code          : %u (If not 0, plugin turns RED)\n", last_xid);
+    // 3. Last Xid Error
+    if (pfn_nvmlDeviceGetLastXid) {
+        unsigned int last_xid = 0;
+        pfn_nvmlDeviceGetLastXid(device, &last_xid, NULL);
+        printf("  > Last Xid Error Code          : %u\n", last_xid);
+    } else {
+        printf("  > Last Xid Error Reporting       : Function not found in nvml.dll (Driver too old)\n");
+    }
     printf("--------------------------------------------------\n");
 
     pfn_nvmlShutdown();
     FreeLibrary(nvml_dll);
 }
 
+
 int main() {
+    // ... (main function loop remains the same) ...
     printf("======================================\n");
     printf(" CPUCoreBars Plugin Tester\n");
     printf("======================================\n");
     printf("IMPORTANT: Run TrafficMonitor with the CPUCoreBars plugin loaded BEFORE using this tool.\n\n");
-
     char choice;
     do {
         printf("\nSelect a test to run:\n");
@@ -136,25 +143,14 @@ int main() {
         printf("  [2] Query comprehensive GPU status from NVML\n");
         printf("  [0] Exit\n");
         printf("Your choice: ");
-        
         choice = _getch();
         printf("%c\n\n", choice);
-
         switch (choice) {
-        case '1':
-            TestWheaInjection();
-            break;
-        case '2':
-            TestNvmlQuery();
-            break;
-        case '0':
-            printf("Exiting.\n");
-            break;
-        default:
-            printf("Invalid choice. Please try again.\n");
-            break;
+        case '1': TestWheaInjection(); break;
+        case '2': TestNvmlQuery(); break;
+        case '0': printf("Exiting.\n"); break;
+        default: printf("Invalid choice. Please try again.\n"); break;
         }
     } while (choice != '0');
-
     return 0;
 }
