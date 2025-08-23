@@ -1,4 +1,4 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -370,7 +370,7 @@ void CCPUCoreBarsPlugin::InitNVML()
     pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
     pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
     // 新增：获取nvmlDeviceGetLastXid函数地址
-    pfn_nvmlDeviceGetLastXid = (decltype(pfn_nvmlDeviceGetLastXid))GetProcAddress(m_nvml_dll, "nvmlDeviceGetLastXid");
+    pfn_nvmlDeviceGetLastXid = (nvmlDeviceGetLastXid_t)GetProcAddress(m_nvml_dll, "nvmlDeviceGetLastXid");
 
     if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons || !pfn_nvmlDeviceGetLastXid) {
         ShutdownNVML();

@@ -8,6 +8,15 @@
 #include "PluginInterface.h"
 #include "nvml.h"
 
+// Add missing NVML definitions for XID errors if they are not in the included nvml.h
+typedef enum nvmlXidError_enum
+{
+    NVML_XID_NONE = 0
+} nvmlXidError_t;
+
+typedef nvmlReturn_t (*nvmlDeviceGetLastXid_t)(nvmlDevice_t device, nvmlXidError_t* xid_type, unsigned long long* xid_id);
+
+
 using namespace Gdiplus;
 
 // =================================================================
@@ -141,8 +150,8 @@ private:
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
     decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
     decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
-    // 新增：NVML XID错误检测函数指针
-    decltype(nvmlDeviceGetLastXid)* pfn_nvmlDeviceGetLastXid;
+    // 修改：NVML XID错误检测函数指针
+    nvmlDeviceGetLastXid_t pfn_nvmlDeviceGetLastXid;
     
     // 修改：移除事件日志查询相关的缓存
     DWORD m_last_error_check_time;
