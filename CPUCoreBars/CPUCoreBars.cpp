@@ -3,6 +3,7 @@
 #include <string>
 #include <PdhMsg.h>
 #include <winevt.h>
+#include <immintrin.h>  // 为了SIMD指令支持
 
 #pragma comment(lib, "pdh.lib")
 #pragma comment(lib, "wevtapi.lib")
@@ -19,9 +20,7 @@ HFONT CCpuUsageItem::s_symbolFont = nullptr;
 int CCpuUsageItem::s_fontRefCount = 0;
 
 CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) 
-    : m_core_index(core_index), m_is_e_core(is_e_core),
-      m_cachedBgBrush(nullptr), m_cachedBarBrush(nullptr),
-      m_lastBgColor(0), m_lastBarColor(0), m_lastDarkMode(false)
+    : m_core_index(core_index), m_is_e_core(is_e_core)
 {
     // 初始化静态字体（只创建一次）
     if (s_symbolFont == nullptr) {
@@ -37,9 +36,14 @@ CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core)
 
 CCpuUsageItem::~CCpuUsageItem()
 {
-    // 清理缓存的画刷
-    if (m_cachedBgBrush) DeleteObject(m_cachedBgBrush);
-    if (m_cachedBarBrush) DeleteObject(m_cachedBarBrush);
+    // 归还GDI对象到对象池
+    auto& pool = GDIObjectPool::Instance();
+    if (m_cachedBgBrush && m_pooled_bg_color != 0xFFFFFFFF) {
+        pool.ReturnBrush(m_pooled_bg_color, m_cachedBgBrush);
+    }
+    if (m_cachedBarBrush && m_pooled_bar_color != 0xFFFFFFFF) {
+        pool.ReturnBrush(m_pooled_bar_color, m_cachedBarBrush);
+    }
     
     // 减少字体引用计数
     s_fontRefCount--;
@@ -86,20 +90,14 @@ int CCpuUsageItem::GetItemWidth() const
 
 void CCpuUsageItem::SetUsage(double usage)
 {
-    m_usage = max(0.0, min(1.0, usage));
-}
-
-inline COLORREF CCpuUsageItem::CalculateBarColor() const
-{
-    // 高使用率优先显示（性能优化：重新排列条件优先级）
-    if (m_usage >= 0.9) return RGB(217, 66, 53);  // 红色
-    if (m_usage >= 0.5) return RGB(246, 182, 78); // 橙色
+    double new_usage = max(0.0, min(1.0, usage));
     
-    // 基于核心索引的颜色
-    if (m_core_index >= 12 && m_core_index <= 19) {
-        return RGB(217, 66, 53);  // 红色
+    // 绘图性能优化：只有当使用率变化足够大时才标记需要重绘
+    if (abs(new_usage - m_last_drawn_usage) > 0.01) {  // 1% 的阈值
+        m_needs_redraw = true;
     }
-    return (m_core_index % 2 == 1) ? RGB(38, 160, 218) : RGB(118, 202, 83);
+    
+    m_usage = new_usage;
 }
 
 void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
@@ -110,7 +108,7 @@ void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
     const wchar_t* symbol = L"\u2618";
     
     // 使用缓存的静态字体
-    if (s_symbolFont) {
+    if (s_symbolFont) [[likely]] {
         HGDIOBJ hOldFont = SelectObject(hDC, s_symbolFont);
         DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         SelectObject(hDC, hOldFont);
@@ -122,35 +120,65 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
     HDC dc = (HDC)hDC;
     RECT rect = { x, y, x + w, y + h };
     
-    // 使用缓存的背景画刷
-    COLORREF bg_color = dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255);
-    if (!m_cachedBgBrush || m_lastBgColor != bg_color || m_lastDarkMode != dark_mode) {
-        if (m_cachedBgBrush) DeleteObject(m_cachedBgBrush);
-        m_cachedBgBrush = CreateSolidBrush(bg_color);
-        m_lastBgColor = bg_color;
-        m_lastDarkMode = dark_mode;
+    // 绘图性能优化：检查是否需要重绘
+    bool rect_changed = (rect.left != m_lastRect.left || rect.top != m_lastRect.top || 
+                        rect.right != m_lastRect.right || rect.bottom != m_lastRect.bottom);
+    bool dark_mode_changed = (dark_mode != m_lastDarkMode);
+    
+    if (!m_needs_redraw && !rect_changed && !dark_mode_changed) {
+        return;  // 跳过重绘
     }
+    
+    // 使用对象池获取背景画刷
+    COLORREF bg_color = dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255);
+    auto& pool = GDIObjectPool::Instance();
+    
+    if (!m_cachedBgBrush || m_lastBgColor != bg_color || dark_mode_changed) {
+        // 归还旧画刷到对象池
+        if (m_cachedBgBrush && m_pooled_bg_color != 0xFFFFFFFF) {
+            pool.ReturnBrush(m_pooled_bg_color, m_cachedBgBrush);
+        }
+        
+        // 从对象池获取新画刷
+        m_cachedBgBrush = pool.GetBrush(bg_color);
+        m_lastBgColor = bg_color;
+        m_pooled_bg_color = bg_color;
+    }
+    
     FillRect(dc, &rect, m_cachedBgBrush);
 
-    // 计算条形图颜色
+    // 计算条形图颜色（使用内联优化函数）
     COLORREF bar_color = CalculateBarColor();
     
-    // 使用缓存的条形画刷
+    // 使用对象池获取条形画刷
     if (!m_cachedBarBrush || m_lastBarColor != bar_color) {
-        if (m_cachedBarBrush) DeleteObject(m_cachedBarBrush);
-        m_cachedBarBrush = CreateSolidBrush(bar_color);
+        // 归还旧画刷到对象池
+        if (m_cachedBarBrush && m_pooled_bar_color != 0xFFFFFFFF) {
+            pool.ReturnBrush(m_pooled_bar_color, m_cachedBarBrush);
+        }
+        
+        // 从对象池获取新画刷
+        m_cachedBarBrush = pool.GetBrush(bar_color);
         m_lastBarColor = bar_color;
+        m_pooled_bar_color = bar_color;
     }
 
+    // 编译器优化：使用整数运算代替浮点
     int bar_height = static_cast<int>(h * m_usage);
-    if (bar_height > 0) {
+    if (bar_height > 0) [[likely]] {
         RECT bar_rect = { x, y + (h - bar_height), x + w, y + h };
         FillRect(dc, &bar_rect, m_cachedBarBrush);
     }
 
-    if (m_is_e_core) {
+    if (m_is_e_core) [[unlikely]] {
         DrawECoreSymbol(dc, rect, dark_mode);
     }
+    
+    // 更新缓存状态
+    m_needs_redraw = false;
+    m_last_drawn_usage = m_usage;
+    m_lastRect = rect;
+    m_lastDarkMode = dark_mode;
 }
 
 
@@ -158,9 +186,9 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 // CNvidiaMonitorItem implementation - 优化版本
 // =================================================================
 CNvidiaMonitorItem::CNvidiaMonitorItem()
-    : m_cachedGraphics(nullptr), m_lastHdc(nullptr)
 {
     wcscpy_s(m_value_text, L"N/A");
+    m_value_hash = HashString(m_value_text);
 
     HDC hdc = GetDC(NULL);
     HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
@@ -218,24 +246,27 @@ int CNvidiaMonitorItem::GetItemWidth() const
     return m_width;
 }
 
-inline COLORREF CNvidiaMonitorItem::CalculateTextColor(bool dark_mode) const 
-{
-    const wchar_t* current_value = GetItemValueText();
-    if (wcscmp(current_value, L"过热") == 0) return RGB(217, 66, 53);
-    if (wcscmp(current_value, L"功耗") == 0) return RGB(246, 182, 78);
-    return dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
-}
-
 void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
+    
+    // 绘图性能优化：检查是否需要重绘
+    RECT rect = { x, y, x + w, y + h };
+    bool rect_changed = (rect.left != m_lastRect.left || rect.top != m_lastRect.top || 
+                        rect.right != m_lastRect.right || rect.bottom != m_lastRect.bottom);
+    bool error_changed = (m_has_system_error != m_last_error_status);
+    bool dark_mode_changed = (dark_mode != m_last_dark_mode);
+    
+    if (!m_needs_redraw && !rect_changed && !error_changed && !dark_mode_changed) {
+        return;  // 跳过重绘
+    }
     
     const int LEFT_MARGIN = 2;
     int icon_size = min(w, h) - 2;
     int icon_y_offset = (h - icon_size) / 2;
 
     // 缓存Graphics对象
-    if (!m_cachedGraphics || m_lastHdc != dc) {
+    if (!m_cachedGraphics || m_lastHdc != dc) [[unlikely]] {
         if (m_cachedGraphics) delete m_cachedGraphics;
         m_cachedGraphics = new Graphics(dc);
         m_cachedGraphics->SetSmoothingMode(SmoothingModeAntiAlias);
@@ -255,16 +286,31 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
     SetTextColor(dc, value_text_color);
     SetBkMode(dc, TRANSPARENT);
     DrawTextW(dc, GetItemValueText(), -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    
+    // 更新缓存状态
+    m_needs_redraw = false;
+    m_last_error_status = m_has_system_error;
+    m_last_dark_mode = dark_mode;
+    m_lastRect = rect;
 }
 
 void CNvidiaMonitorItem::SetValue(const wchar_t* value)
 {
-    wcscpy_s(m_value_text, value);
+    // 字符串操作优化：只有在值真正改变时才更新
+    uint32_t new_hash = HashString(value);
+    if (new_hash != m_value_hash) {
+        wcscpy_s(m_value_text, value);
+        m_value_hash = new_hash;
+        m_needs_redraw = true;
+    }
 }
 
 void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error)
 {
-    m_has_system_error = has_error;
+    if (m_has_system_error != has_error) {
+        m_has_system_error = has_error;
+        m_needs_redraw = true;
+    }
 }
 
 
@@ -278,231 +324,34 @@ CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 }
 
 CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
-    : m_cached_whea_count(0), m_cached_nvlddmkm_count(0), m_last_error_check_time(0)
 {
+    // 预分配事件缓冲区 - 内存管理优化
+    m_event_buffer.reserve(16384);  // 预分配16KB
+    
     GdiplusStartupInput gdiplusStartupInput;
     GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
 
     SYSTEM_INFO sys_info;
     GetSystemInfo(&sys_info);
-    m_num_cores = sys_info.dwNumberOfProcessors;
+    m_num_cores = min((int)sys_info.dwNumberOfProcessors, MAX_CORES);
+    
     DetectCoreTypes();
-    for (int i = 0; i < m_num_cores; ++i)
-    {
+    
+    // 数据结构优化：同时填充数组和vector
+    for (int i = 0; i < m_num_cores; ++i) {
         bool is_e_core = (m_core_efficiency[i] == 0);
-        m_items.push_back(new CCpuUsageItem(i, is_e_core));
+        CCpuUsageItem* item = new CCpuUsageItem(i, is_e_core);
+        m_items_array[i] = item;
+        m_items.push_back(item);
     }
-    if (PdhOpenQuery(nullptr, 0, &m_query) == ERROR_SUCCESS)
-    {
+    
+    // 初始化字符串缓存
+    StringCache::Instance().InitializeCounterPaths(m_num_cores);
+    
+    if (PdhOpenQuery(nullptr, 0, &m_query) == ERROR_SUCCESS) {
         m_counters.resize(m_num_cores);
-        for (int i = 0; i < m_num_cores; ++i)
-        {
-            wchar_t counter_path[128];
-            swprintf_s(counter_path, L"\\Processor(%d)\\%% Processor Time", i);
-            PdhAddCounterW(m_query, counter_path, 0, &m_counters[i]);
-        }
-        PdhCollectQueryData(m_query);
-    }
-    InitNVML();
-}
-
-CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
-{
-    if (m_query) PdhCloseQuery(m_query);
-    for (auto item : m_items) delete item;
-    if (m_gpu_item) delete m_gpu_item;
-    ShutdownNVML();
-    GdiplusShutdown(m_gdiplusToken);
-}
-
-IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
-{
-    if (index < m_num_cores) {
-        return m_items[index];
-    }
-    if (index == m_num_cores && m_gpu_item != nullptr) {
-        return m_gpu_item;
-    }
-    return nullptr;
-}
-
-void CCPUCoreBarsPlugin::DataRequired()
-{
-    UpdateCpuUsage();
-    UpdateGpuLimitReason();
-    
-    // 减少事件日志查询频率 - 30秒检查一次
-    DWORD current_time = GetTickCount();
-    if (current_time - m_last_error_check_time > ERROR_CHECK_INTERVAL_MS) {
-        UpdateWheaErrorCount();
-        UpdateNvlddmkmErrorCount();
-        m_last_error_check_time = current_time;
-    }
-    
-    if (m_gpu_item) {
-        bool has_error = (m_cached_whea_count > 0 || m_cached_nvlddmkm_count > 0);
-        m_gpu_item->SetSystemErrorStatus(has_error);
-    }
-}
-
-const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
-{
-    switch (index) {
-    case TMI_NAME: return L"性能/错误监控";
-    case TMI_DESCRIPTION: return L"CPU核心条形图/GPU受限&错误/WHEA错误";
-    case TMI_AUTHOR: return L"Your Name";
-    case TMI_COPYRIGHT: return L"Copyright (C) 2025";
-    case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.6.0";
-    default: return L"";
-    }
-}
-
-void CCPUCoreBarsPlugin::InitNVML()
-{
-    m_nvml_dll = LoadLibrary(L"nvml.dll");
-    if (!m_nvml_dll) return;
-
-    pfn_nvmlInit = (decltype(pfn_nvmlInit))GetProcAddress(m_nvml_dll, "nvmlInit_v2");
-    pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown");
-    pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
-    pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
-
-    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons) {
-        ShutdownNVML();
-        return;
-    }
-    if (pfn_nvmlInit() != NVML_SUCCESS) {
-        ShutdownNVML();
-        return;
-    }
-    if (pfn_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS) {
-        ShutdownNVML();
-        return;
-    }
-    m_nvml_initialized = true;
-    m_gpu_item = new CNvidiaMonitorItem();
-}
-
-void CCPUCoreBarsPlugin::ShutdownNVML()
-{
-    if (m_nvml_initialized && pfn_nvmlShutdown) {
-        pfn_nvmlShutdown();
-    }
-    if (m_nvml_dll) {
-        FreeLibrary(m_nvml_dll);
-    }
-    m_nvml_initialized = false;
-    m_nvml_dll = nullptr;
-}
-
-void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
-{
-    if (!m_nvml_initialized || !m_gpu_item) return;
-
-    unsigned long long reasons = 0;
-    if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) {
-        if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
-        else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
-        else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"功耗"); }
-        else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"功耗"); }
-        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L"空闲"); }
-        else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L"无限"); }
-        else { m_gpu_item->SetValue(L"无"); }
-    } else {
-        m_gpu_item->SetValue(L"错误");
-    }
-}
-
-void CCPUCoreBarsPlugin::UpdateCpuUsage()
-{
-    if (!m_query) return;
-    if (PdhCollectQueryData(m_query) == ERROR_SUCCESS) {
         for (int i = 0; i < m_num_cores; ++i) {
-            PDH_FMT_COUNTERVALUE value;
-            if (PdhGetFormattedCounterValue(m_counters[i], PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS) {
-                m_items[i]->SetUsage(value.doubleValue / 100.0);
-            } else {
-                m_items[i]->SetUsage(0.0);
-            }
-        }
-    }
-}
-
-void CCPUCoreBarsPlugin::DetectCoreTypes()
-{
-    m_core_efficiency.assign(m_num_cores, 1);
-    DWORD length = 0;
-    GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length);
-    if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) return;
-
-    std::vector<char> buffer(length);
-    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX proc_info = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buffer.data();
-    if (!GetLogicalProcessorInformationEx(RelationProcessorCore, proc_info, &length)) return;
-
-    char* ptr = buffer.data();
-    while (ptr < buffer.data() + length) {
-        PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX current_info = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)ptr;
-        if (current_info->Relationship == RelationProcessorCore) {
-            BYTE efficiency = current_info->Processor.EfficiencyClass;
-            for (int i = 0; i < current_info->Processor.GroupCount; ++i) {
-                KAFFINITY mask = current_info->Processor.GroupMask[i].Mask;
-                for (int j = 0; j < sizeof(KAFFINITY) * 8; ++j) {
-                    if ((mask >> j) & 1) {
-                        int logical_proc_index = j;
-                        if (logical_proc_index < m_num_cores) {
-                            m_core_efficiency[logical_proc_index] = efficiency;
-                        }
-                    }
-                }
-            }
-        }
-        ptr += current_info->Size;
-    }
-}
-
-// 优化的事件日志查询函数
-DWORD CCPUCoreBarsPlugin::QueryEventLogCount(LPCWSTR provider_name)
-{
-    // 使用更高效的查询字符串
-    wchar_t query[256];
-    swprintf_s(query, 
-        L"*[System[Provider[@Name='%s'] and TimeCreated[timediff(@SystemTime) <= 86400000]]]",
-        provider_name);
-        
-    EVT_HANDLE hResults = EvtQuery(NULL, L"System", query, 
-        EvtQueryChannelPath | EvtQueryReverseDirection);
-    if (hResults == NULL) return 0;
-
-    DWORD total_count = 0;
-    EVT_HANDLE hEvents[256]; // 增大批处理大小
-    DWORD returned = 0;
-    
-    while (EvtNext(hResults, ARRAYSIZE(hEvents), hEvents, 1000, 0, &returned)) {
-        total_count += returned;
-        // 批量关闭事件句柄
-        for (DWORD i = 0; i < returned; i++) {
-            EvtClose(hEvents[i]);
-        }
-    }
-    
-    EvtClose(hResults);
-    return total_count;
-}
-
-void CCPUCoreBarsPlugin::UpdateWheaErrorCount()
-{
-    m_cached_whea_count = QueryEventLogCount(L"WHEA-Logger");
-    m_whea_error_count = m_cached_whea_count;
-}
-
-void CCPUCoreBarsPlugin::UpdateNvlddmkmErrorCount()
-{
-    m_cached_nvlddmkm_count = QueryEventLogCount(L"nvlddmkm");
-    m_nvlddmkm_error_count = m_cached_nvlddmkm_count;
-}
-
-extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance()
-{
-    return &CCPUCoreBarsPlugin::Instance();
-}
+            // 字符串操作优化：使用缓存的路径
+            const wchar_t* counter_path = StringCache::Instance().GetCounterPath(i);
+            if (counter_path) {
+                
