@@ -1,0 +1,62 @@
+name: Build XID Test Utility
+
+on:
+  workflow_dispatch: # 允许手动触发
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  build_test_utility:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up MSBuild and Developer Environment
+      # 这一步确保 cl.exe 和链接器可用
+      uses: microsoft/setup-msbuild@v2
+
+    # -----------------------------------------------------------------
+    # 步骤 1: 获取 NVML 依赖
+    # -----------------------------------------------------------------
+    # NVML 库通常包含在 CUDA Toolkit 中。我们使用 vcpkg 来获取 nvml.lib 和 nvml.h
+    # 注意：vcpkg 方式在 GitHub Actions 中可能更稳定，但需要配置。
+    # 另一种方法是直接使用 CUDA Toolkit Runner (如果可用) 或手动下载。
+    
+    # 鉴于 NVML 是 NVIDIA 驱动的一部分，我们直接尝试链接，并依赖系统路径。
+    # 如果链接失败，我们需要手动指定库路径。
+    
+    # -----------------------------------------------------------------
+    # 步骤 2: 编译 CheckXID.cpp
+    # -----------------------------------------------------------------
+    - name: Compile CheckXID.exe
+      shell: cmd
+      run: |
+        # 尝试使用 cl.exe 编译。
+        # /EHsc: 启用 C++ 异常处理
+        # /link: 告诉编译器接下来是链接器选项
+        # nvml.lib: 链接 NVML 库。此库必须在系统路径中或通过 /LIBPATH 指定。
+        
+        # 尝试在标准 Windows Server 2022 环境中编译
+        cl /EHsc CheckXID.cpp /link nvml.lib
+
+    # -----------------------------------------------------------------
+    # 步骤 3: 运行测试 (可选，但推荐)
+    # -----------------------------------------------------------------
+    - name: Run XID Check on Runner
+      # 注意：GitHub Actions Runner 通常是虚拟机，可能没有实际的 NVIDIA GPU 或 NVML 环境。
+      # 如果没有 GPU，nvmlDeviceGetHandleByIndex(0) 将失败，并返回错误码 1。
+      # 运行此步骤是为了验证程序是否可以启动和执行 NVML 初始化。
+      run: |
+        .\CheckXID.exe
+      continue-on-error: true # 允许失败，因为 runner 可能没有 GPU
+
+    # -----------------------------------------------------------------
+    # 步骤 4: 上传可执行文件
+    # -----------------------------------------------------------------
+    - name: Upload Test Utility Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: xid-test-utility-exe
+        path: CheckXID.exe
