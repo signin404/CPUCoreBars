@@ -1,4 +1,4 @@
-// Tester/Tester.cpp - Final Robust Version
+// Tester/Tester.cpp - Final Corrected Version
 
 #include <windows.h>
 #include <stdio.h>
@@ -11,7 +11,6 @@
 static const GUID WHEA_PROVIDER_GUID =
 { 0xc2d578f2, 0x5948, 0x4527, { 0x95, 0x98, 0x34, 0x5a, 0x21, 0x2c, 0x4e, 0xce } };
 
-// ... (TestWheaInjection function remains the same) ...
 void TestWheaInjection() {
     REGHANDLE providerHandle = 0;
     ULONG status = EventRegister(&WHEA_PROVIDER_GUID, NULL, NULL, &providerHandle);
@@ -31,8 +30,6 @@ void TestWheaInjection() {
     EventUnregister(providerHandle);
 }
 
-
-// Function to query comprehensive GPU status via NVML
 void TestNvmlQuery() {
     printf("Querying NVML for comprehensive GPU status...\n");
 
@@ -42,7 +39,6 @@ void TestNvmlQuery() {
         return;
     }
 
-    // Define function pointer types
     typedef nvmlReturn_t(*nvmlInit_t)(void);
     typedef nvmlReturn_t(*nvmlShutdown_t)(void);
     typedef nvmlReturn_t(*nvmlDeviceGetHandleByIndex_t)(unsigned int, nvmlDevice_t*);
@@ -50,7 +46,6 @@ void TestNvmlQuery() {
     typedef nvmlReturn_t(*nvmlDeviceGetRetiredPages_t)(nvmlDevice_t, nvmlPageRetirementCause_t, unsigned int*, unsigned long long*);
     typedef nvmlReturn_t(*nvmlDeviceGetLastXid_t)(nvmlDevice_t, unsigned int*, unsigned long long*);
 
-    // Get function pointers
     nvmlInit_t pfn_nvmlInit = (nvmlInit_t)GetProcAddress(nvml_dll, "nvmlInit_v2");
     nvmlShutdown_t pfn_nvmlShutdown = (nvmlShutdown_t)GetProcAddress(nvml_dll, "nvmlShutdown");
     nvmlDeviceGetHandleByIndex_t pfn_nvmlDeviceGetHandleByIndex = (nvmlDeviceGetHandleByIndex_t)GetProcAddress(nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
@@ -58,7 +53,6 @@ void TestNvmlQuery() {
     nvmlDeviceGetRetiredPages_t pfn_nvmlDeviceGetRetiredPages = (nvmlDeviceGetRetiredPages_t)GetProcAddress(nvml_dll, "nvmlDeviceGetRetiredPages");
     nvmlDeviceGetLastXid_t pfn_nvmlDeviceGetLastXid = (nvmlDeviceGetLastXid_t)GetProcAddress(nvml_dll, "nvmlDeviceGetLastXid");
 
-    // Check only for the most essential functions
     if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex) {
         printf("FAIL: Couldn't find essential NVML functions. Your driver is likely very old.\n");
         FreeLibrary(nvml_dll);
@@ -83,7 +77,6 @@ void TestNvmlQuery() {
     printf("--------------------------------------------------\n");
     printf("Driver Feature Support Report:\n");
 
-    // 1. ECC Errors
     if (pfn_nvmlDeviceGetTotalEccErrors) {
         unsigned long long corrected = 0, uncorrected = 0;
         nvmlReturn_t ecc_status = pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_CORRECTED, NVML_VOLATILE_ECC, &corrected);
@@ -100,10 +93,10 @@ void TestNvmlQuery() {
         printf("  > ECC Error Reporting            : Function not found in nvml.dll (Driver too old)\n");
     }
 
-    // 2. Retired Pages
     if (pfn_nvmlDeviceGetRetiredPages) {
         unsigned int retired_page_count = 0;
-        nvmlReturn_t retired_status = pfn_nvmlDeviceGetRetiredPages(device, NVML_PAGE_RERETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS, &retired_page_count, NULL);
+        // FIX: Corrected the typo in the enum name below
+        nvmlReturn_t retired_status = pfn_nvmlDeviceGetRetiredPages(device, NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS, &retired_page_count, NULL);
          if (retired_status == NVML_SUCCESS) {
             printf("  > Retired Pages (Remapped Rows)  : %u\n", retired_page_count);
         } else if (retired_status == NVML_ERROR_NOT_SUPPORTED) {
@@ -115,7 +108,6 @@ void TestNvmlQuery() {
         printf("  > Retired Pages Reporting        : Function not found in nvml.dll (Driver too old)\n");
     }
 
-    // 3. Last Xid Error
     if (pfn_nvmlDeviceGetLastXid) {
         unsigned int last_xid = 0;
         pfn_nvmlDeviceGetLastXid(device, &last_xid, NULL);
@@ -129,9 +121,7 @@ void TestNvmlQuery() {
     FreeLibrary(nvml_dll);
 }
 
-
 int main() {
-    // ... (main function loop remains the same) ...
     printf("======================================\n");
     printf(" CPUCoreBars Plugin Tester\n");
     printf("======================================\n");
