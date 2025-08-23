@@ -20,15 +20,13 @@ jobs:
     - name: Set up MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    # 移除了下载 NVML SDK 的步骤
+    - name: Build the Plugin (CPUCoreBars.dll)
+      run: msbuild CPUCoreBars/CPUCoreBars.vcxproj -p:Configuration=Release -p:Platform=x64
 
-    - name: Build the Plugin solution
-      run: msbuild CPUCoreBars.sln -p:Configuration=Release -p:Platform=x64
-
-    - name: Build the Tester application
+    - name: Build the Tester (Tester.exe)
       run: msbuild Tester/Tester.vcxproj -p:Configuration=Release -p:Platform=x64
 
-    - name: Upload Artifacts
+    - name: Upload Artifacts (DLL and EXE)
       uses: actions/upload-artifact@v4
       with:
         name: plugin-and-tester
