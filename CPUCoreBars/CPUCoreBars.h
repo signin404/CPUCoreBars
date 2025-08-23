@@ -1,6 +1,7 @@
 // CPUCoreBars/CPUCoreBars.h - 性能优化版本
 #pragma once
 #include <windows.h>
+#include <winevt.h>
 #include <vector>
 #include <array>
 #include <stack>
@@ -10,6 +11,19 @@
 #include <gdiplus.h> 
 #include "PluginInterface.h"
 #include "nvml.h"
+
+// 兼容性宏 - 替代C++20属性
+#ifndef __has_cpp_attribute
+    #define __has_cpp_attribute(x) 0
+#endif
+
+#if __has_cpp_attribute(likely) >= 201803L
+    #define LIKELY [[likely]]
+    #define UNLIKELY [[unlikely]]
+#else
+    #define LIKELY
+    #define UNLIKELY
+#endif
 
 using namespace Gdiplus;
 
@@ -149,11 +163,11 @@ private:
     // 编译器优化：内联函数
     __forceinline COLORREF CalculateBarColor() const {
         // 使用位运算和分支预测优化
-        if (m_usage >= 0.9) [[likely]] return RGB(217, 66, 53);  // 红色
-        if (m_usage >= 0.5) return RGB(246, 182, 78);            // 橙色
+        if (m_usage >= 0.9) LIKELY return RGB(217, 66, 53);  // 红色
+        if (m_usage >= 0.5) return RGB(246, 182, 78);        // 橙色
         
         // 基于核心索引的颜色 - 使用位运算优化
-        if (m_core_index >= 12 && m_core_index <= 19) [[unlikely]] {
+        if (m_core_index >= 12 && m_core_index <= 19) UNLIKELY {
             return RGB(217, 66, 53);  // 红色
         }
         return (m_core_index & 1) ? RGB(38, 160, 218) : RGB(118, 202, 83);
@@ -312,5 +326,5 @@ private:
     
     // 内存管理优化：预分配缓冲区
     mutable std::vector<char> m_event_buffer;
-    mutable std::array<EVT_HANDLE, 512> m_event_handles;  // 预分配事件句柄数组
+    mutable std::vector<EVT_HANDLE> m_event_handles;  // 预分配事件句柄数组
 };
