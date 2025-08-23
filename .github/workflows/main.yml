@@ -20,20 +20,25 @@ jobs:
     - name: Set up MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    # 关键修复点：
-    # 使用 -p:OutDir=... 参数强制指定输出目录。
-    # 这可以确保两个项目的所有产物都进入同一个文件夹。
-
     - name: Build the Plugin (CPUCoreBars.dll)
-      run: msbuild CPUCoreBars/CPUCoreBars.vcxproj -p:Configuration=Release -p:Platform=x64 -p:OutDir=x64\Release\
+      run: msbuild CPUCoreBars/CPUCoreBars.vcxproj -p:Configuration=Release -p:Platform=x64
 
     - name: Build the Tester (Tester.exe)
-      run: msbuild Tester/Tester.vcxproj -p:Configuration=Release -p:Platform=x64 -p:OutDir=x64\Release\
+      run: msbuild Tester/Tester.vcxproj -p:Configuration=Release -p:Platform=x64
 
+    # 关键的调试步骤：
+    # 在上传之前，递归地列出当前工作目录下的所有文件。
+    # 这将明确地告诉我们 .dll 和 .exe 文件被生成在了哪里。
+    - name: List all files in the workspace
+      run: dir /s
+      shell: cmd
+
+    # 最终的上传步骤：
+    # 我们现在提供一个更通配的路径来查找文件，无论它们被放在哪个子目录中。
     - name: Upload Artifacts (DLL and EXE)
       uses: actions/upload-artifact@v4
       with:
         name: plugin-and-tester
         path: |
-          x64/Release/CPUCoreBars.dll
-          x64/Release/Tester.exe
+          **/Release/*.dll
+          **/Release/*.exe
