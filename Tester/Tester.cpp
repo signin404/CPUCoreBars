@@ -1,12 +1,12 @@
-// Tester/Tester.cpp - 最终功能完整版
+// Tester/Tester.cpp - Final Cleaned Version
 
 #include <windows.h>
 #include <stdio.h>
 #include <conio.h>
-#include <evntprov.h> // For generating ETW events
-#include "nvml.h"     // NVML header from the same directory
+#include <evntprov.h>
+#include "nvml.h"
 
-#pragma comment(lib, "advapi32.lib") // For ETW functions
+#pragma comment(lib, "advapi32.lib")
 
 // This GUID MUST match the one being listened for in your plugin.
 // {C2D578F2-5948-4527-9598-345A212C4ECE}
@@ -23,7 +23,6 @@ void TestWheaInjection() {
         return;
     }
 
-    // FIX: Create a valid event descriptor. EventWrite requires a non-null pointer.
     EVENT_DESCRIPTOR eventDescriptor = {0};
     eventDescriptor.Id = 1;
     eventDescriptor.Version = 0;
@@ -35,7 +34,6 @@ void TestWheaInjection() {
 
     printf("Injecting fake WHEA ETW event...\n");
     
-    // FIX: Pass the address of the valid descriptor.
     status = EventWrite(providerHandle, &eventDescriptor, 0, NULL);
 
     if (status == ERROR_SUCCESS) {
@@ -57,7 +55,6 @@ void TestNvmlQuery() {
         return;
     }
 
-    // Define function pointer types
     typedef nvmlReturn_t(*nvmlInit_t)(void);
     typedef nvmlReturn_t(*nvmlShutdown_t)(void);
     typedef nvmlReturn_t(*nvmlDeviceGetHandleByIndex_t)(unsigned int, nvmlDevice_t*);
@@ -65,7 +62,6 @@ void TestNvmlQuery() {
     typedef nvmlReturn_t(*nvmlDeviceGetRetiredPages_t)(nvmlDevice_t, nvmlPageRetirementCause_t, unsigned int*, unsigned long long*);
     typedef nvmlReturn_t(*nvmlDeviceGetLastXid_t)(nvmlDevice_t, unsigned int*, unsigned long long*);
 
-    // Get function pointers
     nvmlInit_t pfn_nvmlInit = (nvmlInit_t)GetProcAddress(nvml_dll, "nvmlInit_v2");
     nvmlShutdown_t pfn_nvmlShutdown = (nvmlShutdown_t)GetProcAddress(nvml_dll, "nvmlShutdown");
     nvmlDeviceGetHandleByIndex_t pfn_nvmlDeviceGetHandleByIndex = (nvmlDeviceGetHandleByIndex_t)GetProcAddress(nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
@@ -96,7 +92,6 @@ void TestNvmlQuery() {
     printf("SUCCESS: Query complete.\n");
     printf("--------------------------------------------------\n");
 
-    // 1. ECC Errors
     unsigned long long corrected = 0, uncorrected = 0;
     nvmlReturn_t ecc_status = pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_CORRECTED, NVML_VOLATILE_ECC, &corrected);
     if (ecc_status == NVML_SUCCESS) {
@@ -109,7 +104,6 @@ void TestNvmlQuery() {
         printf("  > ECC Error Reporting            : Error querying (code: %d)\n", ecc_status);
     }
 
-    // 2. Retired Pages
     unsigned int retired_page_count = 0;
     nvmlReturn_t retired_status = pfn_nvmlDeviceGetRetiredPages(device, NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS, &retired_page_count, NULL);
      if (retired_status == NVML_SUCCESS) {
@@ -120,12 +114,10 @@ void TestNvmlQuery() {
         printf("  > Retired Pages Reporting        : Error querying (code: %d)\n", retired_status);
     }
 
-    // 3. Last Xid Error
-    unsigned int last_xid = 0; // NVML_XID_NONE
+    unsigned int last_xid = 0;
     pfn_nvmlDeviceGetLastXid(device, &last_xid, NULL);
     printf("  > Last Xid Error Code          : %u (If not 0, plugin turns RED)\n", last_xid);
     printf("--------------------------------------------------\n");
-
 
     pfn_nvmlShutdown();
     FreeLibrary(nvml_dll);
@@ -158,7 +150,7 @@ int main() {
         case '0':
             printf("Exiting.\n");
             break;
-        默认:
+        default:
             printf("Invalid choice. Please try again.\n");
             break;
         }
