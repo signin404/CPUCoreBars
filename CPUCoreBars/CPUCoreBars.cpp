@@ -1,4 +1,5 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本 (ETW + NVML ECC) - CORRECTED
+﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本 (ETW + NVML ECC) - FINAL FIX
+#include <initguid.h> // FIX: Provides definitions for GUIDs like SystemTraceControlGuid
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -159,7 +160,6 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
         m_lastHdc = dc;
     }
 
-    // MODIFIED: Use a switch on the status to determine circle color
     Color circle_color;
     switch (m_system_status)
     {
@@ -191,7 +191,6 @@ void CNvidiaMonitorItem::SetValue(const wchar_t* value)
     wcscpy_s(m_value_text, value);
 }
 
-// MODIFIED: Implementation of the new status setter
 void CNvidiaMonitorItem::SetSystemStatus(SystemStatus status)
 {
     m_system_status = status;
@@ -211,7 +210,7 @@ CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 
 CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
 {
-    s_instance = this; // Set static instance pointer
+    s_instance = this;
     GdiplusStartupInput gdiplusStartupInput;
     GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
 
@@ -236,12 +235,12 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
         PdhCollectQueryData(m_query);
     }
     InitNVML();
-    StartWheaEtwListener(); // NEW: Start the listener
+    StartWheaEtwListener();
 }
 
 CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
 {
-    StopWheaEtwListener(); // NEW: Stop the listener
+    StopWheaEtwListener();
     if (m_query) PdhCloseQuery(m_query);
     for (auto item : m_items) delete item;
     if (m_gpu_item) delete m_gpu_item;
@@ -260,7 +259,6 @@ void CCPUCoreBarsPlugin::DataRequired()
 {
     UpdateCpuUsage();
     UpdateGpuLimitReason();
-    // NEW: Call the combined status update function
     UpdateSystemStatus();
 }
 
@@ -272,7 +270,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"4.0.0";
+    case TMI_VERSION: return L"4.0.1"; // Incremented version for the fix
     default: return L"";
     }
 }
@@ -286,7 +284,6 @@ void CCPUCoreBarsPlugin::InitNVML()
     pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown");
     pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
     pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
-    // NEW: Get address for ECC function
     pfn_nvmlDeviceGetTotalEccErrors = (decltype(pfn_nvmlDeviceGetTotalEccErrors))GetProcAddress(m_nvml_dll, "nvmlDeviceGetTotalEccErrors");
 
     if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons) {
@@ -331,7 +328,6 @@ void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
     }
 }
 
-// NEW: Combined function to check NVML ECC and WHEA ETW flag
 void CCPUCoreBarsPlugin::UpdateSystemStatus()
 {
     if (!m_nvml_initialized || !m_gpu_item) return;
@@ -339,7 +335,6 @@ void CCPUCoreBarsPlugin::UpdateSystemStatus()
     bool has_new_uncorrected_errors = false;
     bool has_new_corrected_errors = false;
 
-    // Check for NVML ECC errors if the function pointer is valid
     if (pfn_nvmlDeviceGetTotalEccErrors)
     {
         unsigned long long corrected = 0;
@@ -362,7 +357,6 @@ void CCPUCoreBarsPlugin::UpdateSystemStatus()
         }
     }
 
-    // Determine status based on priority: Red > Orange > Green
     if (m_has_whea_error || has_new_uncorrected_errors)
     {
         m_gpu_item->SetSystemStatus(CNvidiaMonitorItem::SystemStatus::Error);
@@ -422,28 +416,20 @@ void CCPUCoreBarsPlugin::DetectCoreTypes()
     }
 }
 
-// NEW: ETW callback function (static)
 VOID WINAPI CCPUCoreBarsPlugin::EtwEventCallback(PEVENT_RECORD pEventRecord)
 {
-    // The static instance pointer is set in the constructor
     if (s_instance && IsEqualGUID(pEventRecord->EventHeader.ProviderId, WHEA_PROVIDER_GUID))
     {
-        // A WHEA error was detected. Set the flag.
-        // This flag is volatile, ensuring visibility across threads.
         s_instance->m_has_whea_error = true;
     }
 }
 
-// NEW: ETW listener thread function (static)
 DWORD WINAPI CCPUCoreBarsPlugin::EtwThreadProc(LPVOID lpParam)
 {
-    CCPUCoreBarsPlugin* pThis = static_cast<CCPUCoreBarsPlugin*>(lpParam);
-    
-    // FIX: Create a mutable copy of the logger name for the non-const LPWSTR member.
     wchar_t loggerNameBuffer[] = KERNEL_LOGGER_NAMEW;
 
     EVENT_TRACE_LOGFILEW trace_logfile = { 0 };
-    trace_logfile.LoggerName = loggerNameBuffer; // Use the mutable copy
+    trace_logfile.LoggerName = loggerNameBuffer;
     trace_logfile.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_EVENT_RECORD;
     trace_logfile.EventRecordCallback = EtwEventCallback;
 
@@ -452,17 +438,15 @@ DWORD WINAPI CCPUCoreBarsPlugin::EtwThreadProc(LPVOID lpParam)
         return GetLastError();
     }
     
-    // This is a blocking call that will process events until the trace is closed.
     ProcessTrace(&trace_handle, 1, NULL, NULL);
 
     CloseTrace(trace_handle);
     return ERROR_SUCCESS;
 }
 
-// NEW: Function to start the ETW listener
 void CCPUCoreBarsPlugin::StartWheaEtwListener()
 {
-    if (m_etw_thread_handle) return; // Already running
+    if (m_etw_thread_handle) return;
 
     ULONG status = ERROR_SUCCESS;
     EVENT_TRACE_PROPERTIES* p_session_properties = nullptr;
@@ -473,19 +457,17 @@ void CCPUCoreBarsPlugin::StartWheaEtwListener()
     ZeroMemory(p_session_properties, buffer_size);
     p_session_properties->Wnode.BufferSize = buffer_size;
     p_session_properties->Wnode.Flags = WNODE_FLAG_TRACED_GUID;
-    p_session_properties->Wnode.ClientContext = 1; // Use QueryPerformanceCounter for timestamps
+    p_session_properties->Wnode.ClientContext = 1;
     p_session_properties->Wnode.Guid = SystemTraceControlGuid;
     p_session_properties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE;
     p_session_properties->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
 
-    // Start a real-time trace session for the kernel logger
     status = StartTraceW(&m_etw_session_handle, KERNEL_LOGGER_NAMEW, p_session_properties);
     if (status != ERROR_SUCCESS && status != ERROR_ALREADY_EXISTS) {
         free(p_session_properties);
         return;
     }
 
-    // Enable the WHEA provider for our session
     status = EnableTraceEx2(m_etw_session_handle, &WHEA_PROVIDER_GUID, EVENT_CONTROL_CODE_ENABLE_PROVIDER,
         TRACE_LEVEL_VERBOSE, 0, 0, 0, NULL);
     if (status != ERROR_SUCCESS) {
@@ -496,11 +478,9 @@ void CCPUCoreBarsPlugin::StartWheaEtwListener()
 
     free(p_session_properties);
 
-    // Create the thread that will consume the events
     m_etw_thread_handle = CreateThread(nullptr, 0, EtwThreadProc, this, 0, nullptr);
 }
 
-// NEW: Function to stop the ETW listener
 void CCPUCoreBarsPlugin::StopWheaEtwListener()
 {
     if (m_etw_session_handle) {
@@ -512,7 +492,6 @@ void CCPUCoreBarsPlugin::StopWheaEtwListener()
             p_session_properties->Wnode.BufferSize = buffer_size;
             p_session_properties->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
             
-            // Disabling the provider and stopping the session will unblock ProcessTrace
             EnableTraceEx2(m_etw_session_handle, &WHEA_PROVIDER_GUID, EVENT_CONTROL_CODE_DISABLE_PROVIDER, 0, 0, 0, 0, NULL);
             ControlTraceW(m_etw_session_handle, KERNEL_LOGGER_NAMEW, p_session_properties, EVENT_TRACE_CONTROL_STOP);
             free(p_session_properties);
@@ -520,7 +499,7 @@ void CCPUCoreBarsPlugin::StopWheaEtwListener()
     }
 
     if (m_etw_thread_handle) {
-        WaitForSingleObject(m_etw_thread_handle, 5000); // Wait up to 5s for the thread to exit
+        WaitForSingleObject(m_etw_thread_handle, 5000);
         CloseHandle(m_etw_thread_handle);
         m_etw_thread_handle = nullptr;
     }
