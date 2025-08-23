@@ -20,6 +20,10 @@ jobs:
     - name: Set up MSBuild
       uses: microsoft/setup-msbuild@v2
 
+    # 关键修复点：
+    # 我们不再构建 .sln 文件，而是分别构建每个 .vcxproj 项目文件。
+    # 这可以确保两个项目都被编译，无论 .sln 文件如何配置。
+
     - name: Build the Plugin (CPUCoreBars.dll)
       run: msbuild CPUCoreBars/CPUCoreBars.vcxproj -p:Configuration=Release -p:Platform=x64
 
