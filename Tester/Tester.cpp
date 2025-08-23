@@ -1,10 +1,10 @@
-// Tester/Tester.cpp - FINAL CORRECTED VERSION
+// Tester/Tester.cpp - 最终功能完整版
 
 #include <windows.h>
 #include <stdio.h>
 #include <conio.h>
 #include <evntprov.h> // For generating ETW events
-#include "nvml.h"     // NVML header
+#include "nvml.h"     // NVML header from the same directory
 
 #pragma comment(lib, "advapi32.lib") // For ETW functions
 
@@ -23,28 +23,23 @@ void TestWheaInjection() {
         return;
     }
 
-    // =================================================================
-    // FIX: Create a valid event descriptor.
-    // The EventWrite function requires a non-null pointer to a descriptor.
-    // =================================================================
+    // FIX: Create a valid event descriptor. EventWrite requires a non-null pointer.
     EVENT_DESCRIPTOR eventDescriptor = {0};
-    eventDescriptor.Id = 1;         // A simple, non-zero ID for the event
+    eventDescriptor.Id = 1;
     eventDescriptor.Version = 0;
     eventDescriptor.Channel = 0;
-    eventDescriptor.Level = 4;      // 4 corresponds to "Warning" level
+    eventDescriptor.Level = 4; // "Warning" level
     eventDescriptor.Opcode = 0;
     eventDescriptor.Task = 0;
     eventDescriptor.Keyword = 0;
 
     printf("Injecting fake WHEA ETW event...\n");
     
-    // =================================================================
     // FIX: Pass the address of the valid descriptor.
-    // =================================================================
     status = EventWrite(providerHandle, &eventDescriptor, 0, NULL);
 
     if (status == ERROR_SUCCESS) {
-        printf("SUCCESS: Event sent. Check the plugin icon; it should turn RED.\n");
+        printf("SUCCESS: Event sent. After the next check interval (up to 60s), the plugin icon should turn RED.\n");
     } else {
         printf("FAIL: EventWrite failed with error %lu.\n", status);
     }
@@ -52,9 +47,9 @@ void TestWheaInjection() {
     EventUnregister(providerHandle);
 }
 
-// Function to query GPU ECC errors via NVML
+// Function to query comprehensive GPU status via NVML
 void TestNvmlQuery() {
-    printf("Querying NVML for ECC status...\n");
+    printf("Querying NVML for comprehensive GPU status...\n");
 
     HMODULE nvml_dll = LoadLibrary(L"nvml.dll");
     if (!nvml_dll) {
@@ -67,15 +62,19 @@ void TestNvmlQuery() {
     typedef nvmlReturn_t(*nvmlShutdown_t)(void);
     typedef nvmlReturn_t(*nvmlDeviceGetHandleByIndex_t)(unsigned int, nvmlDevice_t*);
     typedef nvmlReturn_t(*nvmlDeviceGetTotalEccErrors_t)(nvmlDevice_t, nvmlMemoryErrorType_t, nvmlEccCounterType_t, unsigned long long*);
+    typedef nvmlReturn_t(*nvmlDeviceGetRetiredPages_t)(nvmlDevice_t, nvmlPageRetirementCause_t, unsigned int*, unsigned long long*);
+    typedef nvmlReturn_t(*nvmlDeviceGetLastXid_t)(nvmlDevice_t, unsigned int*, unsigned long long*);
 
     // Get function pointers
     nvmlInit_t pfn_nvmlInit = (nvmlInit_t)GetProcAddress(nvml_dll, "nvmlInit_v2");
     nvmlShutdown_t pfn_nvmlShutdown = (nvmlShutdown_t)GetProcAddress(nvml_dll, "nvmlShutdown");
     nvmlDeviceGetHandleByIndex_t pfn_nvmlDeviceGetHandleByIndex = (nvmlDeviceGetHandleByIndex_t)GetProcAddress(nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
     nvmlDeviceGetTotalEccErrors_t pfn_nvmlDeviceGetTotalEccErrors = (nvmlDeviceGetTotalEccErrors_t)GetProcAddress(nvml_dll, "nvmlDeviceGetTotalEccErrors");
+    nvmlDeviceGetRetiredPages_t pfn_nvmlDeviceGetRetiredPages = (nvmlDeviceGetRetiredPages_t)GetProcAddress(nvml_dll, "nvmlDeviceGetRetiredPages");
+    nvmlDeviceGetLastXid_t pfn_nvmlDeviceGetLastXid = (nvmlDeviceGetLastXid_t)GetProcAddress(nvml_dll, "nvmlDeviceGetLastXid");
 
-    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetTotalEccErrors) {
-        printf("FAIL: Couldn't find required NVML functions in nvml.dll.\n");
+    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetTotalEccErrors || !pfn_nvmlDeviceGetRetiredPages || !pfn_nvmlDeviceGetLastXid) {
+        printf("FAIL: Couldn't find all required NVML functions in nvml.dll.\n");
         FreeLibrary(nvml_dll);
         return;
     }
@@ -94,16 +93,39 @@ void TestNvmlQuery() {
         return;
     }
 
-    unsigned long long corrected = 0, uncorrected = 0;
-    // Query volatile (since boot) ECC counts.
-    pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_CORRECTED, NVML_VOLATILE_ECC, &corrected);
-    pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_UNCORRECTED, NVML_VOLATILE_ECC, &uncorrected);
-
     printf("SUCCESS: Query complete.\n");
-    printf("  > Volatile Corrected ECC Errors: %llu\n", corrected);
-    printf("  > Volatile Uncorrected ECC Errors: %llu\n", uncorrected);
-    printf("\nNOTE: If these values are > 0, the plugin icon should be ORANGE or RED.\n");
-    printf("This test does not generate errors, only reads existing ones.\n");
+    printf("--------------------------------------------------\n");
+
+    // 1. ECC Errors
+    unsigned long long corrected = 0, uncorrected = 0;
+    nvmlReturn_t ecc_status = pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_CORRECTED, NVML_VOLATILE_ECC, &corrected);
+    if (ecc_status == NVML_SUCCESS) {
+        pfn_nvmlDeviceGetTotalEccErrors(device, NVML_MEMORY_ERROR_TYPE_UNCORRECTED, NVML_VOLATILE_ECC, &uncorrected);
+        printf("  > Volatile Corrected ECC Errors  : %llu (If > 0, plugin turns ORANGE)\n", corrected);
+        printf("  > Volatile Uncorrected ECC Errors: %llu (If > 0, plugin turns RED)\n", uncorrected);
+    } else if (ecc_status == NVML_ERROR_NOT_SUPPORTED) {
+        printf("  > ECC Error Reporting            : Not Supported\n");
+    } else {
+        printf("  > ECC Error Reporting            : Error querying (code: %d)\n", ecc_status);
+    }
+
+    // 2. Retired Pages
+    unsigned int retired_page_count = 0;
+    nvmlReturn_t retired_status = pfn_nvmlDeviceGetRetiredPages(device, NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS, &retired_page_count, NULL);
+     if (retired_status == NVML_SUCCESS) {
+        printf("  > Retired Pages (Remapped Rows)  : %u (If > 0, plugin turns RED)\n", retired_page_count);
+    } else if (retired_status == NVML_ERROR_NOT_SUPPORTED) {
+        printf("  > Retired Pages Reporting        : Not Supported\n");
+    } else {
+        printf("  > Retired Pages Reporting        : Error querying (code: %d)\n", retired_status);
+    }
+
+    // 3. Last Xid Error
+    unsigned int last_xid = 0; // NVML_XID_NONE
+    pfn_nvmlDeviceGetLastXid(device, &last_xid, NULL);
+    printf("  > Last Xid Error Code          : %u (If not 0, plugin turns RED)\n", last_xid);
+    printf("--------------------------------------------------\n");
+
 
     pfn_nvmlShutdown();
     FreeLibrary(nvml_dll);
@@ -118,8 +140,8 @@ int main() {
     char choice;
     do {
         printf("\nSelect a test to run:\n");
-        printf("  [1] Inject fake WHEA ETW Event (Requires Administrator)\n");
-        printf("  [2] Query current GPU ECC Errors\n");
+        printf("  [1] Inject fake WHEA Event (Requires Administrator)\n");
+        printf("  [2] Query comprehensive GPU status from NVML\n");
         printf("  [0] Exit\n");
         printf("Your choice: ");
         
@@ -136,7 +158,7 @@ int main() {
         case '0':
             printf("Exiting.\n");
             break;
-        default:
+        默认:
             printf("Invalid choice. Please try again.\n");
             break;
         }
