@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -278,7 +278,7 @@ CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 }
 
 CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
-    : m_last_error_check_time(0)
+    : m_cached_whea_count(0), m_cached_nvlddmkm_count(0), m_last_error_check_time(0)
 {
     GdiplusStartupInput gdiplusStartupInput;
     GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
@@ -301,8 +301,6 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
             swprintf_s(counter_path, L"\\Processor(%d)\\%% Processor Time", i);
             PdhAddCounterW(m_query, counter_path, 0, &m_counters[i]);
         }
-        // 新增：添加WHEA硬件错误性能计数器
-        PdhAddCounterW(m_query, L"\\System\\Hardware Errors/sec", 0, &m_whea_error_counter);
         PdhCollectQueryData(m_query);
     }
     InitNVML();
@@ -333,16 +331,16 @@ void CCPUCoreBarsPlugin::DataRequired()
     UpdateCpuUsage();
     UpdateGpuLimitReason();
     
-    // 减少错误查询频率 - 60秒检查一次
+    // 减少事件日志查询频率 - 30秒检查一次
     DWORD current_time = GetTickCount();
     if (current_time - m_last_error_check_time > ERROR_CHECK_INTERVAL_MS) {
-        UpdateWheaErrorFromPerfCounter();
-        UpdateNvmlXidError();
+        UpdateWheaErrorCount();
+        UpdateNvlddmkmErrorCount();
         m_last_error_check_time = current_time;
     }
     
     if (m_gpu_item) {
-        bool has_error = (m_whea_error_count > 0 || m_nvlddmkm_error_count > 0);
+        bool has_error = (m_cached_whea_count > 0 || m_cached_nvlddmkm_count > 0);
         m_gpu_item->SetSystemErrorStatus(has_error);
     }
 }
@@ -355,7 +353,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.7.0"; // Incremented version
+    case TMI_VERSION: return L"3.6.0";
     default: return L"";
     }
 }
@@ -369,10 +367,8 @@ void CCPUCoreBarsPlugin::InitNVML()
     pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown");
     pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
     pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
-    // 新增：获取nvmlDeviceGetLastXid函数地址
-    pfn_nvmlDeviceGetLastXid = (nvmlDeviceGetLastXid_t)GetProcAddress(m_nvml_dll, "nvmlDeviceGetLastXid");
 
-    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons || !pfn_nvmlDeviceGetLastXid) {
+    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons) {
         ShutdownNVML();
         return;
     }
@@ -465,42 +461,45 @@ void CCPUCoreBarsPlugin::DetectCoreTypes()
     }
 }
 
-// 新增：通过性能计数器更新WHEA错误
-void CCPUCoreBarsPlugin::UpdateWheaErrorFromPerfCounter()
+// 优化的事件日志查询函数
+DWORD CCPUCoreBarsPlugin::QueryEventLogCount(LPCWSTR provider_name)
 {
-    if (!m_query || !m_whea_error_counter) {
-        m_whea_error_count = 0;
-        return;
+    // 使用更高效的查询字符串
+    wchar_t query[256];
+    swprintf_s(query, 
+        L"*[System[Provider[@Name='%s'] and TimeCreated[timediff(@SystemTime) <= 86400000]]]",
+        provider_name);
+        
+    EVT_HANDLE hResults = EvtQuery(NULL, L"System", query, 
+        EvtQueryChannelPath | EvtQueryReverseDirection);
+    if (hResults == NULL) return 0;
+
+    DWORD total_count = 0;
+    EVT_HANDLE hEvents[256]; // 增大批处理大小
+    DWORD returned = 0;
+    
+    while (EvtNext(hResults, ARRAYSIZE(hEvents), hEvents, 1000, 0, &returned)) {
+        total_count += returned;
+        // 批量关闭事件句柄
+        for (DWORD i = 0; i < returned; i++) {
+            EvtClose(hEvents[i]);
+        }
     }
-    // PdhCollectQueryData() is called in UpdateCpuUsage(), which is called before this.
-    PDH_FMT_COUNTERVALUE value;
-    if (PdhGetFormattedCounterValue(m_whea_error_counter, PDH_FMT_LONG, nullptr, &value) == ERROR_SUCCESS) {
-        m_whea_error_count = value.longValue;
-    } else {
-        m_whea_error_count = 0;
-    }
+    
+    EvtClose(hResults);
+    return total_count;
 }
 
-// 新增：通过NVML更新nvlddmkm (XID) 错误
-void CCPUCoreBarsPlugin::UpdateNvmlXidError()
+void CCPUCoreBarsPlugin::UpdateWheaErrorCount()
 {
-    if (!m_nvml_initialized || !pfn_nvmlDeviceGetLastXid) {
-        m_nvlddmkm_error_count = 0;
-        return;
-    }
+    m_cached_whea_count = QueryEventLogCount(L"WHEA-Logger");
+    m_whea_error_count = m_cached_whea_count;
+}
 
-    nvmlXidError_t xid_type;
-    unsigned long long xid_id; // Unused, but required by function signature
-    nvmlReturn_t result = pfn_nvmlDeviceGetLastXid(m_nvml_device, &xid_type, &xid_id);
-
-    // nvmlDeviceGetLastXid clears the error after being called.
-    // So, we set the count to 1 if an error is found during this check,
-    // and 0 otherwise. This detects new errors within the check interval.
-    if (result == NVML_SUCCESS && xid_type != NVML_XID_NONE) {
-        m_nvlddmkm_error_count = 1;
-    } else {
-        m_nvlddmkm_error_count = 0;
-    }
+void CCPUCoreBarsPlugin::UpdateNvlddmkmErrorCount()
+{
+    m_cached_nvlddmkm_count = QueryEventLogCount(L"nvlddmkm");
+    m_nvlddmkm_error_count = m_cached_nvlddmkm_count;
 }
 
 extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance()

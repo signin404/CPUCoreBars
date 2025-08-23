@@ -8,15 +8,6 @@
 #include "PluginInterface.h"
 #include "nvml.h"
 
-// Add missing NVML definitions for XID errors if they are not in the included nvml.h
-typedef enum nvmlXidError_enum
-{
-    NVML_XID_NONE = 0
-} nvmlXidError_t;
-
-typedef nvmlReturn_t (*nvmlDeviceGetLastXid_t)(nvmlDevice_t device, nvmlXidError_t* xid_type, unsigned long long* xid_id);
-
-
 using namespace Gdiplus;
 
 // =================================================================
@@ -125,17 +116,17 @@ private:
     void InitNVML();
     void ShutdownNVML();
     void UpdateGpuLimitReason();
-    // 修改：更新错误检测函数
-    void UpdateWheaErrorFromPerfCounter();
-    void UpdateNvmlXidError();
+    void UpdateWheaErrorCount();
+    void UpdateNvlddmkmErrorCount();
+    
+    // 新增：优化的事件日志查询函数
+    DWORD QueryEventLogCount(LPCWSTR provider_name);
 
     // 原有成员变量
     std::vector<CCpuUsageItem*> m_items;
     int m_num_cores;
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
-    // 新增：WHEA性能计数器句柄
-    PDH_HCOUNTER m_whea_error_counter = nullptr;
     std::vector<BYTE> m_core_efficiency;
     CNvidiaMonitorItem* m_gpu_item = nullptr;
     bool m_nvml_initialized = false;
@@ -150,10 +141,10 @@ private:
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
     decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
     decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
-    // 修改：NVML XID错误检测函数指针
-    nvmlDeviceGetLastXid_t pfn_nvmlDeviceGetLastXid;
     
-    // 修改：移除事件日志查询相关的缓存
+    // 新增：事件日志查询缓存和频率控制
+    DWORD m_cached_whea_count;
+    DWORD m_cached_nvlddmkm_count;
     DWORD m_last_error_check_time;
     static const DWORD ERROR_CHECK_INTERVAL_MS = 60000; // 60秒检查间隔
 };
