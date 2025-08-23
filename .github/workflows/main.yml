@@ -1,9 +1,9 @@
 name: Build XID Test Utility
 
-于:
+on:
   workflow_dispatch: # 允许手动触发
   push:
-    分支: [ "main", "master" ]
+    branches: [ "main", "master" ]
 
 jobs:
   build_test_utility:
