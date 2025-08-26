@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.h - 性能优化版本
+// CPUCoreBars/CPUCoreBars.h - 性能优化版本 + 温度监控
 #pragma once
 #include <windows.h>
 #include <vector>
@@ -7,12 +7,38 @@
 #include <gdiplus.h> 
 #include "PluginInterface.h"
 #include "nvml.h"
-// WMI headers for temperature monitoring
-#include <Wbemidl.h>
-#pragma comment(lib, "wbemuuid.lib")
-
 
 using namespace Gdiplus;
+
+// =================================================================
+// CPU Temperature Item - 新增温度监控项
+// =================================================================
+class CCpuTemperatureItem : public IPluginItem
+{
+public:
+    CCpuTemperatureItem();
+    virtual ~CCpuTemperatureItem();
+
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+
+    void SetMaxTemperature(double temp);
+    void SetCoreTemperatures(const std::vector<double>& temps);
+
+private:
+    inline COLORREF CalculateTextColor(bool dark_mode) const;
+    
+    wchar_t m_temp_text[32];
+    double m_max_temperature = 0.0;
+    std::vector<double> m_core_temperatures;
+    int m_width = 60;
+};
 
 // =================================================================
 // CPU Core Item - 优化版本
@@ -96,36 +122,9 @@ private:
     mutable HDC m_lastHdc;
 };
 
-// =================================================================
-// CPU Temperature Item
-// =================================================================
-class CCpuTemperatureItem : public IPluginItem
-{
-public:
-    CCpuTemperatureItem();
-    virtual ~CCpuTemperatureItem() = default;
-
-    const wchar_t* GetItemName() const override;
-    const wchar_t* GetItemId() const override;
-    const wchar_t* GetItemLableText() const override;
-    const wchar_t* GetItemValueText() const override;
-    const wchar_t* GetItemValueSampleText() const override;
-
-    bool IsCustomDraw() const override { return true; } // Use custom drawing
-    int GetItemWidth() const override;
-    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override; // Implement custom drawing
-
-    void SetTemperature(int temp_celsius);
-
-private:
-    wchar_t m_value_text[16];
-    int m_width;
-    int m_temperature = -1; // In Celsius
-};
-
 
 // =================================================================
-// Main Plugin Class - 优化版本
+// Main Plugin Class - 优化版本 + 温度监控
 // =================================================================
 class CCPUCoreBarsPlugin : public ITMPlugin
 {
@@ -149,9 +148,13 @@ private:
     void UpdateGpuLimitReason();
     void UpdateWheaErrorCount();
     void UpdateNvlddmkmErrorCount();
-    void InitWMI();
-    void ShutdownWMI();
-    void UpdateCpuTemperature();
+    
+    // 新增：温度相关函数
+    void InitTemperatureMonitoring();
+    void UpdateCpuTemperatures();
+    double ReadMSRTemperature(int core_id);
+    bool InitializeWinRing0();
+    void ShutdownWinRing0();
     
     // 新增：优化的事件日志查询函数
     DWORD QueryEventLogCount(LPCWSTR provider_name);
@@ -163,7 +166,6 @@ private:
     std::vector<PDH_HCOUNTER> m_counters;
     std::vector<BYTE> m_core_efficiency;
     CNvidiaMonitorItem* m_gpu_item = nullptr;
-    CCpuTemperatureItem* m_temp_item = nullptr; // New item
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
     nvmlDevice_t m_nvml_device;
@@ -171,9 +173,6 @@ private:
     int m_nvlddmkm_error_count = 0;
 
     ULONG_PTR m_gdiplusToken;
-    
-    // WMI members for temperature
-    IWbemServices* m_pWbemSvc = nullptr;
 
     decltype(nvmlInit_v2)* pfn_nvmlInit;
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
@@ -185,4 +184,19 @@ private:
     DWORD m_cached_nvlddmkm_count;
     DWORD m_last_error_check_time;
     static const DWORD ERROR_CHECK_INTERVAL_MS = 60000; // 60秒检查间隔
+    
+    // 新增：温度监控相关成员
+    CCpuTemperatureItem* m_temp_item = nullptr;
+    std::vector<double> m_core_temperatures;
+    HMODULE m_winring0_dll = nullptr;
+    bool m_winring0_initialized = false;
+    
+    // WinRing0 函数指针
+    typedef bool (__stdcall *InitializeOlsType)(void);
+    typedef void (__stdcall *DeinitializeOlsType)(void);
+    typedef bool (__stdcall *RdmsrType)(DWORD index, PDWORD eax, PDWORD edx);
+    
+    InitializeOlsType pfn_InitializeOls;
+    DeinitializeOlsType pfn_DeinitializeOls;
+    RdmsrType pfn_Rdmsr;
 };
