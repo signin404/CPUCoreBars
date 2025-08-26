@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -399,7 +399,7 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
     InitWMI();
 }
 
-CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
+CCPUCoreBarsPlugin::~CCpuCoreBarsPlugin()
 {
     if (m_query) PdhCloseQuery(m_query);
     for (auto item : m_items) delete item;
@@ -459,7 +459,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.7.0";
+    case TMI_VERSION: return L"3.7.1";
     default: return L"";
     }
 }
@@ -636,8 +636,9 @@ void CCPUCoreBarsPlugin::InitWMI()
         return;
     }
 
+    // Connect to the ROOT\CIMV2 namespace
     hres = pLoc->ConnectServer(
-        _bstr_t(L"ROOT\\WMI"), NULL, NULL, 0, NULL, 0, 0, &m_pWbemSvc);
+        _bstr_t(L"ROOT\\CIMV2"), NULL, NULL, 0, NULL, 0, 0, &m_pWbemSvc);
     if (FAILED(hres))
     {
         pLoc->Release();
@@ -685,9 +686,10 @@ void CCPUCoreBarsPlugin::UpdateCpuTemperature()
     }
 
     IEnumWbemClassObject* pEnumerator = NULL;
+    // Query the performance counter class for thermal zones
     HRESULT hres = m_pWbemSvc->ExecQuery(
         bstr_t("WQL"),
-        bstr_t("SELECT * FROM MSAcpi_ThermalZoneTemperature"),
+        bstr_t("SELECT Temperature FROM Win32_PerfFormattedData_Counters_ThermalZoneInformation"),
         WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
         NULL,
         &pEnumerator);
@@ -708,11 +710,11 @@ void CCPUCoreBarsPlugin::UpdateCpuTemperature()
         if (0 == uReturn) break;
 
         VARIANT vtProp;
-        hres = pclsObj->Get(L"CurrentTemperature", 0, &vtProp, 0, 0);
-        if (SUCCEEDED(hres) && vtProp.vt == VT_I4)
+        // The property is "Temperature" and it's in Celsius
+        hres = pclsObj->Get(L"Temperature", 0, &vtProp, 0, 0);
+        if (SUCCEEDED(hres) && (vtProp.vt == VT_I4 || vtProp.vt == VT_UI4))
         {
-            long current_temp_kelvin_tenths = vtProp.lVal;
-            long temp_celsius = static_cast<long>((current_temp_kelvin_tenths / 10.0) - 273.15);
+            long temp_celsius = vtProp.lVal;
             if (temp_celsius > max_temp)
             {
                 max_temp = temp_celsius;
