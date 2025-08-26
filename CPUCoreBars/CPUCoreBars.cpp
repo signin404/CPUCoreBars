@@ -504,4 +504,75 @@ bool CCPUCoreBarsPlugin::InitializeWinRing0()
         return false;
     }
     
-    m_winring0_initialized =
+    m_winring0_initialized = true;
+    return true;
+}
+
+void CCPUCoreBarsPlugin::ShutdownWinRing0()
+{
+    if (m_winring0_initialized && pfn_DeinitializeOls) {
+        pfn_DeinitializeOls();
+    }
+    if (m_winring0_dll) {
+        FreeLibrary(m_winring0_dll);
+        m_winring0_dll = nullptr;
+    }
+    m_winring0_initialized = false;
+}
+
+void CCPUCoreBarsPlugin::UpdateCpuTemperatures()
+{
+    if (!m_winring0_initialized || !m_temp_item) {
+        return;
+    }
+    
+    double max_temp = 0.0;
+    std::vector<double> temps;
+    temps.reserve(m_num_cores);
+    
+    // 读取每个核心的温度
+    for (int i = 0; i < m_num_cores; ++i) {
+        double core_temp = ReadMSRTemperature(i);
+        temps.push_back(core_temp);
+        if (core_temp > max_temp) {
+            max_temp = core_temp;
+        }
+    }
+    
+    // 更新温度监控项
+    m_temp_item->SetMaxTemperature(max_temp);
+    m_temp_item->SetCoreTemperatures(temps);
+    m_core_temperatures = temps;
+}
+
+double CCPUCoreBarsPlugin::ReadMSRTemperature(int core_id)
+{
+    if (!m_winring0_initialized || !pfn_Rdmsr) {
+        return 0.0;
+    }
+    
+    // Intel CPU温度读取 - 使用MSR 0x1B1 (IA32_PACKAGE_THERM_STATUS)
+    // 对于单独的核心，使用 MSR 0x1A2 (IA32_THERM_STATUS)
+    DWORD eax, edx;
+    
+    // 先尝试读取包温度
+    if (pfn_Rdmsr(0x1B1, &eax, &edx)) {
+        // 提取温度数据 (位22:16)
+        DWORD temp_data = (eax >> 16) & 0x7F;
+        if (temp_data > 0) {
+            // Intel CPU: TCC_ACTIVATION_TEMP - Digital_Readout
+            // 通常TCC_ACTIVATION_TEMP为100°C
+            return 100.0 - (double)temp_data;
+        }
+    }
+    
+    // 如果包温度读取失败，尝试读取核心温度
+    if (pfn_Rdmsr(0x1A2, &eax, &edx)) {
+        DWORD temp_data = (eax >> 16) & 0x7F;
+        if (temp_data > 0) {
+            return 100.0 - (double)temp_data;
+        }
+    }
+    
+    return 0.0;
+}
