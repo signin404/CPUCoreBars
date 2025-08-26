@@ -686,4 +686,42 @@ DWORD CCPUCoreBarsPlugin::QueryEventLogCount(LPCWSTR provider_name)
     // 使用更高效的查询字符串
     wchar_t query[256];
     swprintf_s(query, 
-        L"*[System[Provider[@Name='%s'] and TimeCreated[timediff(@SystemTime) <= 86
+        L"*[System[Provider[@Name='%s'] and TimeCreated[timediff(@SystemTime) <= 86400000]]]",
+        provider_name);
+        
+    EVT_HANDLE hResults = EvtQuery(NULL, L"System", query, 
+        EvtQueryChannelPath | EvtQueryReverseDirection);
+    if (hResults == NULL) return 0;
+
+    DWORD total_count = 0;
+    EVT_HANDLE hEvents[256]; // 增大批处理大小
+    DWORD returned = 0;
+    
+    while (EvtNext(hResults, ARRAYSIZE(hEvents), hEvents, 1000, 0, &returned)) {
+        total_count += returned;
+        // 批量关闭事件句柄
+        for (DWORD i = 0; i < returned; i++) {
+            EvtClose(hEvents[i]);
+        }
+    }
+    
+    EvtClose(hResults);
+    return total_count;
+}
+
+void CCPUCoreBarsPlugin::UpdateWheaErrorCount()
+{
+    m_cached_whea_count = QueryEventLogCount(L"WHEA-Logger");
+    m_whea_error_count = m_cached_whea_count;
+}
+
+void CCPUCoreBarsPlugin::UpdateNvlddmkmErrorCount()
+{
+    m_cached_nvlddmkm_count = QueryEventLogCount(L"nvlddmkm");
+    m_nvlddmkm_error_count = m_cached_nvlddmkm_count;
+}
+
+extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance()
+{
+    return &CCPUCoreBarsPlugin::Instance();
+}
