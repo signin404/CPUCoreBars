@@ -162,7 +162,7 @@ private:
 
     // 原有成员变量
     std::vector<CCpuUsageItem*> m_items;
-    int m_num_cores;
+    int m_num_cores = 0;
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
     std::vector<BYTE> m_core_efficiency;
@@ -175,15 +175,15 @@ private:
 
     ULONG_PTR m_gdiplusToken;
 
-    decltype(nvmlInit_v2)* pfn_nvmlInit;
-    decltype(nvmlShutdown)* pfn_nvmlShutdown;
-    decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
-    decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
+    decltype(nvmlInit_v2)* pfn_nvmlInit = nullptr;
+    decltype(nvmlShutdown)* pfn_nvmlShutdown = nullptr;
+    decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex = nullptr;
+    decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons = nullptr;
     
     // 新增：事件日志查询缓存和频率控制
-    DWORD m_cached_whea_count;
-    DWORD m_cached_nvlddmkm_count;
-    DWORD m_last_error_check_time;
+    DWORD m_cached_whea_count = 0;
+    DWORD m_cached_nvlddmkm_count = 0;
+    DWORD m_last_error_check_time = 0;
     static const DWORD ERROR_CHECK_INTERVAL_MS = 60000; // 60秒检查间隔
     
     // 新增：温度监控相关成员
@@ -197,7 +197,7 @@ private:
     typedef void (__stdcall *DeinitializeOlsType)(void);
     typedef bool (__stdcall *RdmsrType)(DWORD index, PDWORD eax, PDWORD edx);
     
-    InitializeOlsType pfn_InitializeOls;
-    DeinitializeOlsType pfn_DeinitializeOls;
-    RdmsrType pfn_Rdmsr;
+    InitializeOlsType pfn_InitializeOls = nullptr;
+    DeinitializeOlsType pfn_DeinitializeOls = nullptr;
+    RdmsrType pfn_Rdmsr = nullptr;
 };
