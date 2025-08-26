@@ -439,7 +439,7 @@ void CCPUCoreBarsPlugin::DataRequired()
     UpdateCpuTemperatures();
     UpdateGpuLimitReason();
     
-    // 减少事件日志查询频率 - 30秒检查一次
+    // 减少事件日志查询频率 - 60秒检查一次
     DWORD current_time = GetTickCount();
     if (current_time - m_last_error_check_time > ERROR_CHECK_INTERVAL_MS) {
         UpdateWheaErrorCount();
@@ -576,3 +576,114 @@ double CCPUCoreBarsPlugin::ReadMSRTemperature(int core_id)
     
     return 0.0;
 }
+
+void CCPUCoreBarsPlugin::InitNVML()
+{
+    m_nvml_dll = LoadLibrary(L"nvml.dll");
+    if (!m_nvml_dll) return;
+
+    pfn_nvmlInit = (decltype(pfn_nvmlInit))GetProcAddress(m_nvml_dll, "nvmlInit_v2");
+    pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown");
+    pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
+    pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
+
+    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons) {
+        ShutdownNVML();
+        return;
+    }
+    if (pfn_nvmlInit() != NVML_SUCCESS) {
+        ShutdownNVML();
+        return;
+    }
+    if (pfn_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS) {
+        ShutdownNVML();
+        return;
+    }
+    m_nvml_initialized = true;
+    m_gpu_item = new CNvidiaMonitorItem();
+}
+
+void CCPUCoreBarsPlugin::ShutdownNVML()
+{
+    if (m_nvml_initialized && pfn_nvmlShutdown) {
+        pfn_nvmlShutdown();
+    }
+    if (m_nvml_dll) {
+        FreeLibrary(m_nvml_dll);
+    }
+    m_nvml_initialized = false;
+    m_nvml_dll = nullptr;
+}
+
+void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
+{
+    if (!m_nvml_initialized || !m_gpu_item) return;
+
+    unsigned long long reasons = 0;
+    if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) {
+        if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
+        else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
+        else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"功耗"); }
+        else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"功耗"); }
+        else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L"空闲"); }
+        else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L"无限"); }
+        else { m_gpu_item->SetValue(L"无"); }
+    } else {
+        m_gpu_item->SetValue(L"错误");
+    }
+}
+
+void CCPUCoreBarsPlugin::UpdateCpuUsage()
+{
+    if (!m_query) return;
+    if (PdhCollectQueryData(m_query) == ERROR_SUCCESS) {
+        for (int i = 0; i < m_num_cores; ++i) {
+            PDH_FMT_COUNTERVALUE value;
+            if (PdhGetFormattedCounterValue(m_counters[i], PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS) {
+                m_items[i]->SetUsage(value.doubleValue / 100.0);
+            } else {
+                m_items[i]->SetUsage(0.0);
+            }
+        }
+    }
+}
+
+void CCPUCoreBarsPlugin::DetectCoreTypes()
+{
+    m_core_efficiency.assign(m_num_cores, 1);
+    DWORD length = 0;
+    GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length);
+    if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) return;
+
+    std::vector<char> buffer(length);
+    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX proc_info = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buffer.data();
+    if (!GetLogicalProcessorInformationEx(RelationProcessorCore, proc_info, &length)) return;
+
+    char* ptr = buffer.data();
+    while (ptr < buffer.data() + length) {
+        PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX current_info = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)ptr;
+        if (current_info->Relationship == RelationProcessorCore) {
+            BYTE efficiency = current_info->Processor.EfficiencyClass;
+            for (int i = 0; i < current_info->Processor.GroupCount; ++i) {
+                KAFFINITY mask = current_info->Processor.GroupMask[i].Mask;
+                for (int j = 0; j < sizeof(KAFFINITY) * 8; ++j) {
+                    if ((mask >> j) & 1) {
+                        int logical_proc_index = j;
+                        if (logical_proc_index < m_num_cores) {
+                            m_core_efficiency[logical_proc_index] = efficiency;
+                        }
+                    }
+                }
+            }
+        }
+        ptr += current_info->Size;
+    }
+}
+
+// 优化的事件日志查询函数
+DWORD CCPUCoreBarsPlugin::QueryEventLogCount(LPCWSTR provider_name)
+{
+    // 使用更高效的查询字符串
+    wchar_t query[256];
+    swprintf_s(query, 
+        L"*[System[Provider[@Name='%s'] and TimeCreated[timediff(@SystemTime) <= 86
