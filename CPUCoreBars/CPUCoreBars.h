@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.h - 性能优化版本 + 温度监控
+// CPUCoreBars/CPUCoreBars.h - 修复版本 + 温度监控
 #pragma once
 #include <windows.h>
 #include <vector>
@@ -124,12 +124,16 @@ private:
 
 
 // =================================================================
-// Main Plugin Class - 优化版本 + 温度监控
+// Main Plugin Class - 修复版本 + 温度监控
 // =================================================================
 class CCPUCoreBarsPlugin : public ITMPlugin
 {
 public:
     static CCPUCoreBarsPlugin& Instance();
+    
+    // **关键修复：添加GetItemCount()方法**
+    int GetItemCount() override;
+    
     IPluginItem* GetItem(int index) override;
     void DataRequired() override;
     const wchar_t* GetInfo(PluginInfoIndex index) override;

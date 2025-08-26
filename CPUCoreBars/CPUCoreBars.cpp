@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本 + 温度监控
+// CPUCoreBars/CPUCoreBars.cpp - 修复版本 + 温度监控
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -12,7 +12,7 @@
 using namespace Gdiplus;
 
 // =================================================================
-// CCpuTemperatureItem implementation - 新增温度监控项
+// CCpuTemperatureItem implementation - 修复版本
 // =================================================================
 CCpuTemperatureItem::CCpuTemperatureItem()
 {
@@ -367,7 +367,7 @@ void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error)
 
 
 // =================================================================
-// CCPUCoreBarsPlugin implementation - 优化版本 + 温度监控
+// CCPUCoreBarsPlugin implementation - 修复版本 + 温度监控
 // =================================================================
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 {
@@ -392,6 +392,7 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
         bool is_e_core = (m_core_efficiency[i] == 0);
         m_items.push_back(new CCpuUsageItem(i, is_e_core));
     }
+    
     if (PdhOpenQuery(nullptr, 0, &m_query) == ERROR_SUCCESS)
     {
         m_counters.resize(m_num_cores);
@@ -419,17 +420,35 @@ CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
     GdiplusShutdown(m_gdiplusToken);
 }
 
+int CCPUCoreBarsPlugin::GetItemCount()
+{
+    int count = m_num_cores;
+    if (m_gpu_item) count++;
+    if (m_temp_item) count++;
+    return count;
+}
+
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
 {
     if (index < m_num_cores) {
         return m_items[index];
     }
-    if (index == m_num_cores && m_gpu_item != nullptr) {
-        return m_gpu_item;
+    
+    int current_index = m_num_cores;
+    
+    if (m_gpu_item) {
+        if (index == current_index) {
+            return m_gpu_item;
+        }
+        current_index++;
     }
-    if (index == m_num_cores + 1 && m_temp_item != nullptr) {
-        return m_temp_item;
+    
+    if (m_temp_item) {
+        if (index == current_index) {
+            return m_temp_item;
+        }
     }
+    
     return nullptr;
 }
 
