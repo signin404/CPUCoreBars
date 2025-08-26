@@ -1,4 +1,4 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -399,7 +399,7 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
     InitWMI();
 }
 
-CCPUCoreBarsPlugin::~CCpuCoreBarsPlugin()
+CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
 {
     if (m_query) PdhCloseQuery(m_query);
     for (auto item : m_items) delete item;
