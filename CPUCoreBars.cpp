@@ -1,226 +1,155 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp
-#include "CPUCoreBars.h"
-#include <string>
-#include <PdhMsg.h>
-#include <winevt.h>
-#include <comdef.h> // <-- Include for COM helpers
-
-#pragma comment(lib, "pdh.lib")
-#pragma comment(lib, "wevtapi.lib")
-#pragma comment(lib, "gdiplus.lib")
-#pragma comment(lib, "wbemuuid.lib") // <-- Link WMI library
-
-using namespace Gdiplus;
+﻿// CPUCoreBars/CPUCoreBars.h
+#pragma once
+#include <windows.h>
+#include <vector>
+#include <Pdh.h>
+#include <Wbemidl.h>
+// GDI+ headers must be included after windows.h
+#include <gdiplus.h> 
+#include "PluginInterface.h"
+#include "nvml.h"
 
 // =================================================================
-// CCpuUsageItem implementation
+// CPU Core Item
 // =================================================================
-CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) : m_core_index(core_index), m_is_e_core(is_e_core) { swprintf_s(m_item_name, L"CPU Core %d", m_core_index); swprintf_s(m_item_id, L"cpu_core_%d", m_core_index); }
-const wchar_t* CCpuUsageItem::GetItemName() const { return m_item_name; }
-const wchar_t* CCpuUsageItem::GetItemId() const { return m_item_id; }
-const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
-const wchar_t* CCpuUsageItem::GetItemValueText() const { return L""; }
-const wchar_t* CCpuUsageItem::GetItemValueSampleText() const { return L""; }
-bool CCpuUsageItem::IsCustomDraw() const { return true; }
-int CCpuUsageItem::GetItemWidth() const { return 8; }
-void CCpuUsageItem::SetUsage(double usage) { m_usage = max(0.0, min(1.0, usage)); }
-void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode) { COLORREF icon_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0); SetTextColor(hDC, icon_color); SetBkMode(hDC, TRANSPARENT); const wchar_t* symbol = L"\u2618"; HFONT hFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol"); HGDIOBJ hOldFont = SelectObject(hDC, hFont); DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE); SelectObject(hDC, hOldFont); DeleteObject(hFont); }
-void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) { HDC dc = (HDC)hDC; RECT rect = { x, y, x + w, y + h }; HBRUSH bg_brush = CreateSolidBrush(dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255)); FillRect(dc, &rect, bg_brush); DeleteObject(bg_brush); COLORREF bar_color; if (m_core_index >= 12 && m_core_index <= 19) { bar_color = RGB(217, 66, 53); } else if (m_core_index % 2 == 1) { bar_color = RGB(38, 160, 218); } else { bar_color = RGB(118, 202, 83); } if (m_usage >= 0.9) { bar_color = RGB(217, 66, 53); } else if (m_usage >= 0.5) { bar_color = RGB(246, 182, 78); } int bar_height = static_cast<int>(h * m_usage); if (bar_height > 0) { RECT bar_rect = { x, y + (h - bar_height), x + w, y + h }; HBRUSH bar_brush = CreateSolidBrush(bar_color); FillRect(dc, &bar_rect, bar_brush); DeleteObject(bar_brush); } if (m_is_e_core) { DrawECoreSymbol(dc, rect, dark_mode); } }
-
-
-// =================================================================
-// CNvidiaMonitorItem implementation
-// =================================================================
-CNvidiaMonitorItem::CNvidiaMonitorItem() { wcscpy_s(m_value_text, L"N/A"); HDC hdc = GetDC(NULL); HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); HFONT hOldFont = (HFONT)SelectObject(hdc, hFont); const wchar_t* sample_value = GetItemValueSampleText(); SIZE value_size; GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size); m_width = 18 + 4 + value_size.cx; SelectObject(hdc, hOldFont); ReleaseDC(NULL, hdc); }
-const wchar_t* CNvidiaMonitorItem::GetItemName() const { return L"GPU/系统 状态"; }
-const wchar_t* CNvidiaMonitorItem::GetItemId() const { return L"gpu_system_status"; }
-const wchar_t* CNvidiaMonitorItem::GetItemLableText() const { return L""; }
-const wchar_t* CNvidiaMonitorItem::GetItemValueText() const { return m_value_text; }
-const wchar_t* CNvidiaMonitorItem::GetItemValueSampleText() const { return L"过热"; }
-bool CNvidiaMonitorItem::IsCustomDraw() const { return true; }
-int CNvidiaMonitorItem::GetItemWidth() const { return m_width; }
-void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) { HDC dc = (HDC)hDC; const int LEFT_MARGIN = 2; int icon_size = min(w, h) - 2; int icon_y_offset = (h - icon_size) / 2; { Graphics graphics(dc); graphics.SetSmoothingMode(SmoothingModeAntiAlias); Color circleColor = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83); SolidBrush circleBrush(circleColor); graphics.FillEllipse(&circleBrush, x + LEFT_MARGIN, y + icon_y_offset, icon_size, icon_size); } RECT text_rect = { x + LEFT_MARGIN + icon_size + 4, y, x + w, y + h }; COLORREF value_text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0); const wchar_t* current_value = GetItemValueText(); if (wcscmp(current_value, L"过热") == 0) { value_text_color = RGB(217, 66, 53); } else if (wcscmp(current_value, L"功耗") == 0) { value_text_color = RGB(246, 182, 78); } SetTextColor(dc, value_text_color); SetBkMode(dc, TRANSPARENT); DrawTextW(dc, current_value, -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE); }
-void CNvidiaMonitorItem::SetValue(const wchar_t* value) { wcscpy_s(m_value_text, value); }
-void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error) { m_has_system_error = has_error; }
-
-
-// =================================================================
-// NEW: CCpuTempItem implementation
-// =================================================================
-CCpuTempItem::CCpuTempItem()
+class CCpuUsageItem : public IPluginItem
 {
-    wcscpy_s(m_value_text, L"N/A");
-}
-const wchar_t* CCpuTempItem::GetItemName() const { return L"CPU 最高温度"; }
-const wchar_t* CCpuTempItem::GetItemId() const { return L"cpu_max_temp"; }
-const wchar_t* CCpuTempItem::GetItemLableText() const { return L"CPU Temp:"; }
-const wchar_t* CCpuTempItem::GetItemValueText() const { return m_value_text; }
-const wchar_t* CCpuTempItem::GetItemValueSampleText() const { return L"100°C"; }
-bool CCpuTempItem::IsCustomDraw() const { return false; }
-int CCpuTempItem::GetItemWidth() const { return 0; }
-void CCpuTempItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) {}
-void CCpuTempItem::SetTemperature(int temp)
-{
-    m_temperature = temp;
-    if (m_temperature > -1) {
-        swprintf_s(m_value_text, L"%d°C", m_temperature);
-    } else {
-        wcscpy_s(m_value_text, L"N/A");
-    }
-}
+public:
+    CCpuUsageItem(int core_index, bool is_e_core);
+    virtual ~CCpuUsageItem() = default;
+
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+
+    void SetUsage(double usage);
+
+private:
+    void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
+    int m_core_index;
+    double m_usage = 0.0;
+    wchar_t m_item_name[32];
+    wchar_t m_item_id[32];
+    bool m_is_e_core;
+};
 
 
 // =================================================================
-// CCPUCoreBarsPlugin implementation
+// GPU / System Error Combined Item
 // =================================================================
-CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance() { static CCPUCoreBarsPlugin instance; return instance; }
-
-CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
+class CNvidiaMonitorItem : public IPluginItem
 {
-    GdiplusStartupInput gdiplusStartupInput;
-    GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
+public:
+    CNvidiaMonitorItem();
+    virtual ~CNvidiaMonitorItem() = default;
 
-    SYSTEM_INFO sys_info;
-    GetSystemInfo(&sys_info);
-    m_num_cores = sys_info.dwNumberOfProcessors;
-    DetectCoreTypes();
-    for (int i = 0; i < m_num_cores; ++i) { bool is_e_core = (m_core_efficiency[i] == 0); m_items.push_back(new CCpuUsageItem(i, is_e_core)); }
-    if (PdhOpenQuery(nullptr, 0, &m_query) == ERROR_SUCCESS) { m_counters.resize(m_num_cores); for (int i = 0; i < m_num_cores; ++i) { wchar_t counter_path[128]; swprintf_s(counter_path, L"\\Processor(%d)\\%% Processor Time", i); PdhAddCounterW(m_query, counter_path, 0, &m_counters[i]); } PdhCollectQueryData(m_query); }
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+
+    void SetValue(const wchar_t* value);
+    void SetSystemErrorStatus(bool has_error);
+
+private:
+    wchar_t m_value_text[128];
+    int m_width = 100;
+    bool m_has_system_error = false;
+};
+
+
+// =================================================================
+// CPU Temperature Item
+// =================================================================
+class CCpuTempItem : public IPluginItem
+{
+public:
+    CCpuTempItem();
+    virtual ~CCpuTempItem() = default;
+
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+
+    void SetTemperature(int temp);
+
+private:
+    wchar_t m_value_text[32];
+    int m_temperature = -1;
+};
+
+
+// =================================================================
+// Main Plugin Class
+// =================================================================
+class CCPUCoreBarsPlugin : public ITMPlugin
+{
+public:
+    static CCPUCoreBarsPlugin& Instance();
+    IPluginItem* GetItem(int index) override;
+    void DataRequired() override;
+    const wchar_t* GetInfo(PluginInfoIndex index) override;
+private:
+    CCPUCoreBarsPlugin();
+    ~CCPUCoreBarsPlugin();
+    CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
+    CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
     
-    InitNVML();
-    InitWMI();
+    void UpdateCpuUsage();
+    void DetectCoreTypes();
+    void InitNVML();
+    void ShutdownNVML();
+    void UpdateGpuLimitReason();
+    void UpdateWheaErrorCount();
+    void UpdateNvlddmkmErrorCount();
+    void InitWMI();
+    void ShutdownWMI();
+    void UpdateCpuMaxTemperature();
 
-    m_cpu_temp_item = new CCpuTempItem();
-}
+    std::vector<CCpuUsageItem*> m_items;
+    int m_num_cores;
+    PDH_HQUERY m_query = nullptr;
+    std::vector<PDH_HCOUNTER> m_counters;
+    std::vector<BYTE> m_core_efficiency;
+    CNvidiaMonitorItem* m_gpu_item = nullptr;
+    CCpuTempItem* m_cpu_temp_item = nullptr;
 
-CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
-{
-    if (m_query) PdhCloseQuery(m_query);
-    for (auto item : m_items) delete item;
-    if (m_gpu_item) delete m_gpu_item;
-    if (m_cpu_temp_item) delete m_cpu_temp_item;
-    
-    ShutdownNVML();
-    ShutdownWMI();
-    GdiplusShutdown(m_gdiplusToken);
-}
+    // NVML members
+    bool m_nvml_initialized = false;
+    HMODULE m_nvml_dll = nullptr;
+    nvmlDevice_t m_nvml_device;
 
-IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
-{
-    int current_index = 0;
-    // CPU Core bars
-    if (index < m_num_cores) {
-        return m_items[index];
-    }
-    current_index += m_num_cores;
+    // System Error members
+    int m_whea_error_count = 0;
+    int m_nvlddmkm_error_count = 0;
 
-    // GPU item
-    if (m_gpu_item) {
-        if (index == current_index) {
-            return m_gpu_item;
-        }
-        current_index++;
-    }
+    // GDI+ member
+    ULONG_PTR m_gdiplusToken;
 
-    // CPU Temp item
-    if (m_cpu_temp_item) {
-        if (index == current_index) {
-            return m_cpu_temp_item;
-        }
-    }
+    // WMI members
+    bool m_wmi_initialized = false;
+    IWbemLocator* m_pLoc = nullptr;
+    IWbemServices* m_pSvc = nullptr;
 
-    return nullptr;
-}
-
-void CCPUCoreBarsPlugin::DataRequired()
-{
-    UpdateCpuUsage();
-    UpdateGpuLimitReason();
-    UpdateWheaErrorCount();
-    UpdateNvlddmkmErrorCount();
-    UpdateCpuMaxTemperature();
-
-    if (m_gpu_item) {
-        bool has_error = (m_whea_error_count > 0 || m_nvlddmkm_error_count > 0);
-        m_gpu_item->SetSystemErrorStatus(has_error);
-    }
-}
-
-const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"CPU/GPU 高级监视器"; case TMI_DESCRIPTION: return L"显示CPU核心使用率、GPU状态、系统错误及CPU温度。"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"4.0.0"; default: return L""; } }
-
-void CCPUCoreBarsPlugin::InitNVML() { m_nvml_dll = LoadLibrary(L"nvml.dll"); if (!m_nvml_dll) return; pfn_nvmlInit = (decltype(pfn_nvmlInit))GetProcAddress(m_nvml_dll, "nvmlInit_v2"); pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown"); pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2"); pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons"); if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons) { ShutdownNVML(); return; } if (pfn_nvmlInit() != NVML_SUCCESS) { ShutdownNVML(); return; } if (pfn_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS) { ShutdownNVML(); return; } m_nvml_initialized = true; m_gpu_item = new CNvidiaMonitorItem(); }
-void CCPUCoreBarsPlugin::ShutdownNVML() { if (m_nvml_initialized && pfn_nvmlShutdown) { pfn_nvmlShutdown(); } if (m_nvml_dll) { FreeLibrary(m_nvml_dll); } m_nvml_initialized = false; m_nvml_dll = nullptr; }
-void CCPUCoreBarsPlugin::UpdateGpuLimitReason() { if (!m_nvml_initialized || !m_gpu_item) return; unsigned long long reasons = 0; if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) { if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); } else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); } else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"功耗"); } else if (reasons & nvmlClocksThrottleReasonSwPowerCap) { m_gpu_item->SetValue(L"功耗"); } else if (reasons & nvmlClocksThrottleReasonGpuIdle) { m_gpu_item->SetValue(L"空闲"); } else if (reasons == nvmlClocksThrottleReasonApplicationsClocksSetting) { m_gpu_item->SetValue(L"无限"); } else { m_gpu_item->SetValue(L"无"); } } else { m_gpu_item->SetValue(L"错误"); } }
-void CCPUCoreBarsPlugin::UpdateCpuUsage() { if (!m_query) return; if (PdhCollectQueryData(m_query) == ERROR_SUCCESS) { for (int i = 0; i < m_num_cores; ++i) { PDH_FMT_COUNTERVALUE value; if (PdhGetFormattedCounterValue(m_counters[i], PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS) { m_items[i]->SetUsage(value.doubleValue / 100.0); } else { m_items[i]->SetUsage(0.0); } } } }
-void CCPUCoreBarsPlugin::DetectCoreTypes() { m_core_efficiency.assign(m_num_cores, 1); DWORD length = 0; GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length); if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) return; std::vector<char> buffer(length); PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX proc_info = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buffer.data(); if (!GetLogicalProcessorInformationEx(RelationProcessorCore, proc_info, &length)) return; char* ptr = buffer.data(); while (ptr < buffer.data() + length) { PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX current_info = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)ptr; if (current_info->Relationship == RelationProcessorCore) { BYTE efficiency = current_info->Processor.EfficiencyClass; for (int i = 0; i < current_info->Processor.GroupCount; ++i) { KAFFINITY mask = current_info->Processor.GroupMask[i].Mask; for (int j = 0; j < sizeof(KAFFINITY) * 8; ++j) { if ((mask >> j) & 1) { int logical_proc_index = j; if (logical_proc_index < m_num_cores) { m_core_efficiency[logical_proc_index] = efficiency; } } } } } ptr += current_info->Size; } }
-void CCPUCoreBarsPlugin::UpdateWheaErrorCount() { LPCWSTR query = L"*[System[Provider[@Name='WHEA-Logger'] and TimeCreated[timediff(@SystemTime) <= 86400000]]]"; EVT_HANDLE hResults = EvtQuery(NULL, L"System", query, EvtQueryChannelPath | EvtQueryReverseDirection); if (hResults == NULL) { m_whea_error_count = 0; return; } DWORD dwEventCount = 0; EVT_HANDLE hEvents[128]; DWORD dwReturned = 0; while (EvtNext(hResults, ARRAYSIZE(hEvents), hEvents, INFINITE, 0, &dwReturned)) { dwEventCount += dwReturned; for (DWORD i = 0; i < dwReturned; i++) { EvtClose(hEvents[i]); } } m_whea_error_count = dwEventCount; EvtClose(hResults); }
-void CCPUCoreBarsPlugin::UpdateNvlddmkmErrorCount() { LPCWSTR query = L"*[System[Provider[@Name='nvlddmkm'] and TimeCreated[timediff(@SystemTime) <= 86400000]]]"; EVT_HANDLE hResults = EvtQuery(NULL, L"System", query, EvtQueryChannelPath | EvtQueryReverseDirection); if (hResults == NULL) { m_nvlddmkm_error_count = 0; return; } DWORD dwEventCount = 0; EVT_HANDLE hEvents[128]; DWORD dwReturned = 0; while (EvtNext(hResults, ARRAYSIZE(hEvents), hEvents, INFINITE, 0, &dwReturned)) { dwEventCount += dwReturned; for (DWORD i = 0; i < dwReturned; i++) { EvtClose(hEvents[i]); } } m_nvlddmkm_error_count = dwEventCount; EvtClose(hResults); }
-
-void CCPUCoreBarsPlugin::InitWMI()
-{
-    HRESULT hres;
-    hres = CoInitializeEx(0, COINIT_MULTITHREADED);
-    if (FAILED(hres)) return;
-    hres = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL);
-    if (FAILED(hres)) { CoUninitialize(); return; }
-    hres = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&m_pLoc);
-    if (FAILED(hres)) { CoUninitialize(); return; }
-    hres = m_pLoc->ConnectServer(_bstr_t(L"ROOT\\WMI"), NULL, NULL, 0, NULL, 0, 0, &m_pSvc);
-    if (FAILED(hres)) { m_pLoc->Release(); CoUninitialize(); return; }
-    hres = CoSetProxyBlanket(m_pSvc, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE);
-    if (FAILED(hres)) { m_pSvc->Release(); m_pLoc->Release(); CoUninitialize(); return; }
-    m_wmi_initialized = true;
-}
-
-void CCPUCoreBarsPlugin::ShutdownWMI()
-{
-    if (m_pSvc) m_pSvc->Release();
-    if (m_pLoc) m_pLoc->Release();
-    CoUninitialize();
-    m_wmi_initialized = false;
-}
-
-void CCPUCoreBarsPlugin::UpdateCpuMaxTemperature()
-{
-    if (!m_wmi_initialized || !m_cpu_temp_item) {
-        if (m_cpu_temp_item) m_cpu_temp_item->SetTemperature(-1);
-        return;
-    }
-
-    IEnumWbemClassObject* pEnumerator = NULL;
-    HRESULT hres = m_pSvc->ExecQuery(bstr_t("WQL"), bstr_t("SELECT * FROM MSAcpi_ThermalZoneTemperature"), WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, NULL, &pEnumerator);
-    if (FAILED(hres)) {
-        m_cpu_temp_item->SetTemperature(-1);
-        return;
-    }
-
-    IWbemClassObject* pclsObj = NULL;
-    ULONG uReturn = 0;
-    int max_temp = -1;
-    bool found = false;
-
-    while (pEnumerator)
-    {
-        hres = pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn);
-        if (uReturn == 0) break;
-
-        VARIANT vtProp;
-        hres = pclsObj->Get(L"CurrentTemperature", 0, &vtProp, 0, 0);
-        if (SUCCEEDED(hres) && vtProp.vt == VT_I4)
-        {
-            int temp_kelvin_x10 = vtProp.intVal;
-            int temp_celsius = static_cast<int>((temp_kelvin_x10 / 10.0) - 273.15);
-            if (temp_celsius > max_temp) {
-                max_temp = temp_celsius;
-            }
-            found = true;
-        }
-        VariantClear(&vtProp);
-        pclsObj->Release();
-    }
-
-    pEnumerator->Release();
-    m_cpu_temp_item->SetTemperature(found ? max_temp : -1);
-}
-
-extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance() { return &CCPUCoreBarsPlugin::Instance(); }
+    // NVML function pointers
+    decltype(nvmlInit_v2)* pfn_nvmlInit;
+    decltype(nvmlShutdown)* pfn_nvmlShutdown;
+    decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
+    decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
+};
