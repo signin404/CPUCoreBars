@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp - 修复版本 + 温度监控
+﻿// CPUCoreBars/CPUCoreBars.cpp - 修复版本 + 温度监控
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>

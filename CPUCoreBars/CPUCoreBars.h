@@ -131,9 +131,6 @@ class CCPUCoreBarsPlugin : public ITMPlugin
 public:
     static CCPUCoreBarsPlugin& Instance();
     
-    // **关键修复：添加GetItemCount()方法**
-    int GetItemCount() override;
-    
     IPluginItem* GetItem(int index) override;
     void DataRequired() override;
     const wchar_t* GetInfo(PluginInfoIndex index) override;
