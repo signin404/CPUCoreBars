@@ -111,12 +111,11 @@ public:
     const wchar_t* GetItemValueText() const override;
     const wchar_t* GetItemValueSampleText() const override;
 
-    bool IsCustomDraw() const override { return false; } // Use default text drawing
+    bool IsCustomDraw() const override { return true; } // Use custom drawing
     int GetItemWidth() const override;
-    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override {}; // Not used if IsCustomDraw is false
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override; // Implement custom drawing
 
     void SetTemperature(int temp_celsius);
-    COLORREF GetItemValueColor(bool dark_mode) const override;
 
 private:
     wchar_t m_value_text[16];

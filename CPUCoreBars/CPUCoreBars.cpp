@@ -1,4 +1,4 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -114,7 +114,7 @@ void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
     // 使用缓存的静态字体
     if (s_symbolFont) {
         HGDIOBJ hOldFont = SelectObject(hDC, s_symbolFont);
-        DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        DrawTextW(hDC, symbol, -1, (LPRENT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         SelectObject(hDC, hOldFont);
     }
 }
@@ -333,11 +333,27 @@ int CCpuTemperatureItem::GetItemWidth() const
     return m_width;
 }
 
-COLORREF CCpuTemperatureItem::GetItemValueColor(bool dark_mode) const
+void CCpuTemperatureItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
-    if (m_temperature >= 90) return RGB(217, 66, 53); // Red for hot
-    if (m_temperature >= 75) return RGB(246, 182, 78); // Orange for warm
-    return dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0); // Default color
+    HDC dc = (HDC)hDC;
+
+    // Calculate text color based on temperature
+    COLORREF text_color;
+    if (m_temperature >= 90) {
+        text_color = RGB(217, 66, 53); // Red for hot
+    }
+    else if (m_temperature >= 75) {
+        text_color = RGB(246, 182, 78); // Orange for warm
+    }
+    else {
+        text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0); // Default color
+    }
+
+    SetTextColor(dc, text_color);
+    SetBkMode(dc, TRANSPARENT);
+
+    RECT text_rect = { x, y, x + w, y + h };
+    DrawTextW(dc, GetItemValueText(), -1, &text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 }
 
 
