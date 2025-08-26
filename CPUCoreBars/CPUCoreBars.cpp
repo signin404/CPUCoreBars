@@ -114,7 +114,7 @@ void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
     // 使用缓存的静态字体
     if (s_symbolFont) {
         HGDIOBJ hOldFont = SelectObject(hDC, s_symbolFont);
-        DrawTextW(hDC, symbol, -1, (LPRENT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         SelectObject(hDC, hOldFont);
     }
 }
