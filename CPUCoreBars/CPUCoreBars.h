@@ -7,6 +7,10 @@
 #include <gdiplus.h> 
 #include "PluginInterface.h"
 #include "nvml.h"
+// WMI headers for temperature monitoring
+#include <Wbemidl.h>
+#pragma comment(lib, "wbemuuid.lib")
+
 
 using namespace Gdiplus;
 
@@ -92,6 +96,34 @@ private:
     mutable HDC m_lastHdc;
 };
 
+// =================================================================
+// CPU Temperature Item
+// =================================================================
+class CCpuTemperatureItem : public IPluginItem
+{
+public:
+    CCpuTemperatureItem();
+    virtual ~CCpuTemperatureItem() = default;
+
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+
+    bool IsCustomDraw() const override { return false; } // Use default text drawing
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override {}; // Not used if IsCustomDraw is false
+
+    void SetTemperature(int temp_celsius);
+    COLORREF GetItemValueColor(bool dark_mode) const override;
+
+private:
+    wchar_t m_value_text[16];
+    int m_width;
+    int m_temperature = -1; // In Celsius
+};
+
 
 // =================================================================
 // Main Plugin Class - 优化版本
@@ -118,6 +150,9 @@ private:
     void UpdateGpuLimitReason();
     void UpdateWheaErrorCount();
     void UpdateNvlddmkmErrorCount();
+    void InitWMI();
+    void ShutdownWMI();
+    void UpdateCpuTemperature();
     
     // 新增：优化的事件日志查询函数
     DWORD QueryEventLogCount(LPCWSTR provider_name);
@@ -129,6 +164,7 @@ private:
     std::vector<PDH_HCOUNTER> m_counters;
     std::vector<BYTE> m_core_efficiency;
     CNvidiaMonitorItem* m_gpu_item = nullptr;
+    CCpuTemperatureItem* m_temp_item = nullptr; // New item
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
     nvmlDevice_t m_nvml_device;
@@ -136,6 +172,9 @@ private:
     int m_nvlddmkm_error_count = 0;
 
     ULONG_PTR m_gdiplusToken;
+    
+    // WMI members for temperature
+    IWbemServices* m_pWbemSvc = nullptr;
 
     decltype(nvmlInit_v2)* pfn_nvmlInit;
     decltype(nvmlShutdown)* pfn_nvmlShutdown;
