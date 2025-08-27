@@ -314,7 +314,7 @@ const wchar_t* CTempMonitorItem::GetItemValueText() const
 
 const wchar_t* CTempMonitorItem::GetItemValueSampleText() const
 {
-    return L"100°C";
+    return L"99°C";
 }
 
 bool CTempMonitorItem::IsCustomDraw() const
@@ -349,7 +349,7 @@ void CTempMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark
     RECT rect = { x, y, x + w, y + h };
 
     // Draw background
-    COLORREF bg_color = dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255);
+    COLORREF bg_color = dark_mode ? RGB(0, 0, 0) : RGB(0, 0, 0);
     HBRUSH bg_brush = CreateSolidBrush(bg_color);
     FillRect(dc, &rect, bg_brush);
     DeleteObject(bg_brush);
@@ -409,9 +409,9 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
 
     // 创建并添加温度监控项
     if (m_gpu_item) m_all_items.push_back(m_gpu_item);
-    m_cpu_temp_item = new CTempMonitorItem(L"CPU Temperature", L"cpu_temp", L"CPU");
+    m_cpu_temp_item = new CTempMonitorItem(L"CPU Temperature", L"cpu_temp", L"");
     m_all_items.push_back(m_cpu_temp_item);
-    m_gpu_temp_item = new CTempMonitorItem(L"GPU Temperature", L"gpu_temp", L"GPU");
+    m_gpu_temp_item = new CTempMonitorItem(L"GPU Temperature", L"gpu_temp", L"");
     m_all_items.push_back(m_gpu_temp_item);
 }
 
@@ -457,7 +457,7 @@ void CCPUCoreBarsPlugin::DataRequired()
 void CCPUCoreBarsPlugin::OnMonitorInfo(const ITMPlugin::MonitorInfo& monitor_info)
 {
     // 从主程序获取温度信息
-    m_cpu_temp = monitor_info.cpu_temperature;
+    m_cpu_temp = monitor_info.core_max;
     m_gpu_temp = monitor_info.gpu_temperature;
 }
 
@@ -465,7 +465,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index) {
     case TMI_NAME: return L"性能/错误监控";
-    case TMI_DESCRIPTION: return L"CPU核心条形图/GPU受限&错误/WHEA错误/温度";
+    case TMI_DESCRIPTION: return L"CPU核心条形图/GPU受限&错误/WHEA错误";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
