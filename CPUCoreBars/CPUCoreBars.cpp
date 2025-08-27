@@ -9,6 +9,8 @@
 #pragma comment(lib, "gdiplus.lib")
 
 // Add .NET references for LibreHardwareMonitor
+// IMPORTANT: Ensure LibreHardwareMonitorLib.dll is in the build output directory 
+// or its path is added to the project's Additional #using Directories.
 #using <System.dll>
 #using "LibreHardwareMonitorLib.dll"
 
@@ -65,7 +67,7 @@ namespace HardwareMonitor
 
 
 // =================================================================
-// CCpuUsageItem implementation (unchanged from original)
+// CCpuUsageItem implementation (unchanged)
 // =================================================================
 HFONT CCpuUsageItem::s_symbolFont = nullptr;
 int CCpuUsageItem::s_fontRefCount = 0;
@@ -155,7 +157,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 }
 
 // =================================================================
-// CNvidiaMonitorItem implementation (unchanged from original)
+// CNvidiaMonitorItem implementation (unchanged)
 // =================================================================
 CNvidiaMonitorItem::CNvidiaMonitorItem() : m_cachedGraphics(nullptr), m_lastHdc(nullptr)
 {
@@ -330,15 +332,10 @@ CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
 
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
 {
-    if (index >= 0 && index < m_plugin_items.size()) {
+    if (index >= 0 && index < static_cast<int>(m_plugin_items.size())) {
         return m_plugin_items[index];
     }
     return nullptr;
-}
-
-int CCPUCoreBarsPlugin::GetItemCount()
-{
-    return static_cast<int>(m_plugin_items.size());
 }
 
 void CCPUCoreBarsPlugin::DataRequired()
