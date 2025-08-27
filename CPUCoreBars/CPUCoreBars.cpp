@@ -1,5 +1,4 @@
 // CPUCoreBars/CPUCoreBars.cpp - Final Corrected Version
-#include "stdafx.h"
 #include "CPUCoreBars.h"
 #include <string>
 #include <winevt.h>
