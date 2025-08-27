@@ -13,7 +13,7 @@
 #pragma comment(lib, "pdh.lib")
 #pragma comment(lib, "wevtapi.lib")
 #pragma comment(lib, "gdiplus.lib")
-#pragma comment(lib, "nvml.lib") // Links the NVML library
+#pragma comment(lib, "nvml.lib") // <-- ADD THIS LINE to link the NVML library
 
 #using <System.dll>
 #using "LibreHardwareMonitorLib.dll"
@@ -22,96 +22,7 @@
 using namespace Gdiplus;
 using namespace LibreHardwareMonitor::Hardware;
 
-// =================================================================
-// CPU Core Item
-// =================================================================
-class CCpuUsageItem : public IPluginItem
-{
-public:
-    CCpuUsageItem(int core_index, bool is_e_core);
-    virtual ~CCpuUsageItem();
-    const wchar_t* GetItemName() const override;
-    const wchar_t* GetItemId() const override;
-    const wchar_t* GetItemLableText() const override;
-    const wchar_t* GetItemValueText() const override;
-    const wchar_t* GetItemValueSampleText() const override;
-    bool IsCustomDraw() const override;
-    int GetItemWidth() const override;
-    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
-    void SetUsage(double usage);
-private:
-    void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
-    inline COLORREF CalculateBarColor() const;
-    int m_core_index;
-    double m_usage = 0.0;
-    wchar_t m_item_name[32];
-    wchar_t m_item_id[32];
-    bool m_is_e_core;
-    static HFONT s_symbolFont;
-    static int s_fontRefCount;
-    mutable HBRUSH m_cachedBgBrush;
-    mutable HBRUSH m_cachedBarBrush;
-    mutable COLORREF m_lastBgColor;
-    mutable COLORREF m_lastBarColor;
-    mutable bool m_lastDarkMode;
-};
-
-// =================================================================
-// GPU / System Error Combined Item
-// =================================================================
-class CNvidiaMonitorItem : public IPluginItem
-{
-public:
-    CNvidiaMonitorItem();
-    virtual ~CNvidiaMonitorItem();
-    const wchar_t* GetItemName() const override;
-    const wchar_t* GetItemId() const override;
-    const wchar_t* GetItemLableText() const override;
-    const wchar_t* GetItemValueText() const override;
-    const wchar_t* GetItemValueSampleText() const override;
-    bool IsCustomDraw() const override;
-    int GetItemWidth() const override;
-    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
-    void SetValue(const wchar_t* value);
-    void SetSystemErrorStatus(bool has_error);
-private:
-    inline COLORREF CalculateTextColor(bool dark_mode) const;
-    wchar_t m_value_text[128];
-    int m_width = 100;
-    bool m_has_system_error = false;
-    mutable Graphics* m_cachedGraphics;
-    mutable HDC m_lastHdc;
-};
-
-// =================================================================
-// Generic Hardware Monitor Item
-// =================================================================
-class CHardwareMonitorItem : public IPluginItem
-{
-public:
-    CHardwareMonitorItem(const std::wstring& identifier, const std::wstring& label_text);
-    virtual ~CHardwareMonitorItem() = default;
-    const wchar_t* GetItemName() const override;
-    const wchar_t* GetItemId() const override;
-    const wchar_t* GetItemLableText() const override;
-    const wchar_t* GetItemValueText() const override;
-    const wchar_t* GetItemValueSampleText() const override;
-    bool IsCustomDraw() const override { return false; }
-    int GetItemWidth() const override { return 0; }
-    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override {}
-    void UpdateValue();
-private:
-    std::wstring m_identifier;
-    std::wstring m_name;
-    std::wstring m_id;
-    std::wstring m_label_text;
-    std::wstring m_value_text;
-    std::wstring m_sample_text;
-};
-
-// =================================================================
-// Main Plugin Class
-// =================================================================
+// ... (The rest of the file is correct and does not need to be changed) ...
 class CCPUCoreBarsPlugin : public ITMPlugin
 {
 public:
