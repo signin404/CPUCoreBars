@@ -286,9 +286,9 @@ CTempMonitorItem::CTempMonitorItem(const wchar_t* name, const wchar_t* id, const
     GetTextExtentPoint32W(hdc, m_label, (int)wcslen(m_label), &label_size);
     GetTextExtentPoint32W(hdc, GetItemValueSampleText(), (int)wcslen(GetItemValueSampleText()), &value_size);
     
-    m_width = label_size.cx + value_size.cx + 2; // 2 pixels for padding
+    m_width = label_size.cx + value_size.cx
 
-    SelectObject(hdc, hOldFont);
+    SelectObject(hdc， hOldFont);
     ReleaseDC(NULL, hdc);
 }
 
