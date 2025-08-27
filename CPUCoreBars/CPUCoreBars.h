@@ -177,8 +177,8 @@ private:
     DWORD m_last_error_check_time;
     static const DWORD ERROR_CHECK_INTERVAL_MS = 60000;
 
-    // Correctly qualify UpdateVisitor with its parent namespace
-    gcroot<LibreHardwareMonitor::UpdateVisitor^> m_updateVisitor;
+    // Correctly qualify UpdateVisitor with its full, proper namespace
+    gcroot<LibreHardwareMonitor::Hardware::UpdateVisitor^> m_updateVisitor;
     CHardwareMonitorItem* m_cpu_temp_item = nullptr;
     CHardwareMonitorItem* m_gpu_temp_item = nullptr;
 };
