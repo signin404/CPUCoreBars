@@ -13,6 +13,8 @@
 #pragma comment(lib, "pdh.lib")
 #pragma comment(lib, "wevtapi.lib")
 #pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "nvml.lib") // Links the NVML library
+
 #using <System.dll>
 #using "LibreHardwareMonitorLib.dll"
 
