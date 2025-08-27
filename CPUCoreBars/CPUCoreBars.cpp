@@ -1,6 +1,7 @@
 // CPUCoreBars/CPUCoreBars.cpp - Final Corrected Version
 #include "CPUCoreBars.h"
 #include <string>
+#include <winevt.h> // <-- ADDED THIS INCLUDE FOR EVENT LOGGING API
 
 // The #using directive is now in the header file, so it's not needed here.
 using namespace System;
@@ -334,7 +335,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.8.0";
+    case TMI_VERSION: return L"3.9.0";
     default: return L"";
     }
 }

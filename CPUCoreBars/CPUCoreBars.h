@@ -20,8 +20,8 @@
 using namespace Gdiplus;
 using namespace LibreHardwareMonitor::Hardware;
 
-// Forward declaration for the UpdateVisitor class
-ref class UpdateVisitor;
+// DO NOT forward-declare 'UpdateVisitor' here. 
+// The full definition is imported from the DLL via the #using directive above.
 
 // =================================================================
 // CPU Core Item
