@@ -1,6 +1,6 @@
 #pragma once
 
-// ADDED: This header must import the assembly it depends on.
+// ADDED: This header must import the assembly it depends on to resolve its base class.
 #using "LibreHardwareMonitorLib.dll"
 
 using namespace LibreHardwareMonitor::Hardware;

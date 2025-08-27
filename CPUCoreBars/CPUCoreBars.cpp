@@ -54,8 +54,33 @@ namespace HardwareMonitor
 // =================================================================
 HFONT CCpuUsageItem::s_symbolFont = nullptr;
 int CCpuUsageItem::s_fontRefCount = 0;
-CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) : m_core_index(core_index), m_is_e_core(is_e_core), m_cachedBgBrush(nullptr), m_cachedBarBrush(nullptr), m_lastBgColor(0), m_lastBarColor(0), m_lastDarkMode(false) { if (s_symbolFont == nullptr) { s_symbolFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol"); } s_fontRefCount++; swprintf_s(m_item_name, L"CPU Core %d", m_core_index); swprintf_s(m_item_id, L"cpu_core_%d", m_core_index); }
-CCpuUsageItem::~CCpuUsageItem() { if (m_cachedBgBrush) DeleteObject(m_cachedBgBrush); if (m_cachedBarBrush) DeleteObject(m_cachedBarBrush); s_fontRefCount--; if (s_fontRefCount == 0 && s_symbolFont) { DeleteObject(s_symbolFont); s_symbolFont = nullptr; } }
+
+CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core)
+    : m_core_index(core_index), m_is_e_core(is_e_core),
+      m_cachedBgBrush(nullptr), m_cachedBarBrush(nullptr),
+      m_lastBgColor(0), m_lastBarColor(0), m_lastDarkMode(false)
+{
+    if (s_symbolFont == nullptr) {
+        s_symbolFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
+    }
+    s_fontRefCount++;
+    swprintf_s(m_item_name, L"CPU Core %d", m_core_index);
+    swprintf_s(m_item_id, L"cpu_core_%d", m_core_index);
+}
+
+CCpuUsageItem::~CCpuUsageItem()
+{
+    if (m_cachedBgBrush) DeleteObject(m_cachedBgBrush);
+    if (m_cachedBarBrush) DeleteObject(m_cachedBarBrush);
+    s_fontRefCount--;
+    if (s_fontRefCount == 0 && s_symbolFont) {
+        DeleteObject(s_symbolFont);
+        s_symbolFont = nullptr;
+    }
+}
+
 const wchar_t* CCpuUsageItem::GetItemName() const { return m_item_name; }
 const wchar_t* CCpuUsageItem::GetItemId() const { return m_item_id; }
 const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
@@ -64,14 +89,73 @@ const wchar_t* CCpuUsageItem::GetItemValueSampleText() const { return L""; }
 bool CCpuUsageItem::IsCustomDraw() const { return true; }
 int CCpuUsageItem::GetItemWidth() const { return 8; }
 void CCpuUsageItem::SetUsage(double usage) { m_usage = max(0.0, min(1.0, usage)); }
-inline COLORREF CCpuUsageItem::CalculateBarColor() const { if (m_usage >= 0.9) return RGB(217, 66, 53); if (m_usage >= 0.5) return RGB(246, 182, 78); if (m_core_index >= 12 && m_core_index <= 19) return RGB(217, 66, 53); return (m_core_index % 2 == 1) ? RGB(38, 160, 218) : RGB(118, 202, 83); }
-void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode) { COLORREF icon_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0); SetTextColor(hDC, icon_color); SetBkMode(hDC, TRANSPARENT); const wchar_t* symbol = L"\u2618"; if (s_symbolFont) { HGDIOBJ hOldFont = SelectObject(hDC, s_symbolFont); DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE); SelectObject(hDC, hOldFont); } }
-void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) { HDC dc = (HDC)hDC; RECT rect = { x, y, x + w, y + h }; COLORREF bg_color = dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255); if (!m_cachedBgBrush || m_lastBgColor != bg_color || m_lastDarkMode != dark_mode) { if (m_cachedBgBrush) DeleteObject(m_cachedBgBrush); m_cachedBgBrush = CreateSolidBrush(bg_color); m_lastBgColor = bg_color; m_lastDarkMode = dark_mode; } FillRect(dc, &rect, m_cachedBgBrush); COLORREF bar_color = CalculateBarColor(); if (!m_cachedBarBrush || m_lastBarColor != bar_color) { if (m_cachedBarBrush) DeleteObject(m_cachedBarBrush); m_cachedBarBrush = CreateSolidBrush(bar_color); m_lastBarColor = bar_color; } int bar_height = static_cast<int>(h * m_usage); if (bar_height > 0) { RECT bar_rect = { x, y + (h - bar_height), x + w, y + h }; FillRect(dc, &bar_rect, m_cachedBarBrush); } if (m_is_e_core) { DrawECoreSymbol(dc, rect, dark_mode); } }
+
+inline COLORREF CCpuUsageItem::CalculateBarColor() const
+{
+    if (m_usage >= 0.9) return RGB(217, 66, 53);
+    if (m_usage >= 0.5) return RGB(246, 182, 78);
+    if (m_core_index >= 12 && m_core_index <= 19) return RGB(217, 66, 53);
+    return (m_core_index % 2 == 1) ? RGB(38, 160, 218) : RGB(118, 202, 83);
+}
+
+void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
+{
+    COLORREF icon_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
+    SetTextColor(hDC, icon_color);
+    SetBkMode(hDC, TRANSPARENT);
+    const wchar_t* symbol = L"\u2618";
+    if (s_symbolFont) {
+        HGDIOBJ hOldFont = SelectObject(hDC, s_symbolFont);
+        DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hDC, hOldFont);
+    }
+}
+
+void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
+{
+    HDC dc = (HDC)hDC;
+    RECT rect = { x, y, x + w, y + h };
+    COLORREF bg_color = dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255);
+    if (!m_cachedBgBrush || m_lastBgColor != bg_color || m_lastDarkMode != dark_mode) {
+        if (m_cachedBgBrush) DeleteObject(m_cachedBgBrush);
+        m_cachedBgBrush = CreateSolidBrush(bg_color);
+        m_lastBgColor = bg_color;
+        m_lastDarkMode = dark_mode;
+    }
+    FillRect(dc, &rect, m_cachedBgBrush);
+    COLORREF bar_color = CalculateBarColor();
+    if (!m_cachedBarBrush || m_lastBarColor != bar_color) {
+        if (m_cachedBarBrush) DeleteObject(m_cachedBarBrush);
+        m_cachedBarBrush = CreateSolidBrush(bar_color);
+        m_lastBarColor = bar_color;
+    }
+    int bar_height = static_cast<int>(h * m_usage);
+    if (bar_height > 0) {
+        RECT bar_rect = { x, y + (h - bar_height), x + w, y + h };
+        FillRect(dc, &bar_rect, m_cachedBarBrush);
+    }
+    if (m_is_e_core) {
+        DrawECoreSymbol(dc, rect, dark_mode);
+    }
+}
 
 // =================================================================
 // CNvidiaMonitorItem implementation
 // =================================================================
-CNvidiaMonitorItem::CNvidiaMonitorItem() : m_cachedGraphics(nullptr), m_lastHdc(nullptr) { wcscpy_s(m_value_text, L"N/A"); HDC hdc = GetDC(NULL); HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); HFONT hOldFont = (HFONT)SelectObject(hdc, hFont); const wchar_t* sample_value = GetItemValueSampleText(); SIZE value_size; GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size); m_width = 18 + 4 + value_size.cx; SelectObject(hdc, hOldFont); ReleaseDC(NULL, hdc); }
+CNvidiaMonitorItem::CNvidiaMonitorItem() : m_cachedGraphics(nullptr), m_lastHdc(nullptr)
+{
+    wcscpy_s(m_value_text, L"N/A");
+    HDC hdc = GetDC(NULL);
+    HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    const wchar_t* sample_value = GetItemValueSampleText();
+    SIZE value_size;
+    GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size);
+    m_width = 18 + 4 + value_size.cx;
+    SelectObject(hdc, hOldFont);
+    ReleaseDC(NULL, hdc);
+}
+
 CNvidiaMonitorItem::~CNvidiaMonitorItem() { if (m_cachedGraphics) delete m_cachedGraphics; }
 const wchar_t* CNvidiaMonitorItem::GetItemName() const { return L"GPU/WHEA"; }
 const wchar_t* CNvidiaMonitorItem::GetItemId() const { return L"gpu_system_status"; }
@@ -82,8 +166,36 @@ bool CNvidiaMonitorItem::IsCustomDraw() const { return true; }
 int CNvidiaMonitorItem::GetItemWidth() const { return m_width; }
 void CNvidiaMonitorItem::SetValue(const wchar_t* value) { wcscpy_s(m_value_text, value); }
 void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error) { m_has_system_error = has_error; }
-inline COLORREF CNvidiaMonitorItem::CalculateTextColor(bool dark_mode) const { const wchar_t* current_value = GetItemValueText(); if (wcscmp(current_value, L"过热") == 0) return RGB(217, 66, 53); if (wcscmp(current_value, L"功耗") == 0) return RGB(246, 182, 78); return dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0); }
-void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) { HDC dc = (HDC)hDC; const int LEFT_MARGIN = 2; int icon_size = min(w, h) - 2; int icon_y_offset = (h - icon_size) / 2; if (!m_cachedGraphics || m_lastHdc != dc) { if (m_cachedGraphics) delete m_cachedGraphics; m_cachedGraphics = new Graphics(dc); m_cachedGraphics->SetSmoothingMode(SmoothingModeAntiAlias); m_lastHdc = dc; } Color circle_color = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83); SolidBrush circle_brush(circle_color); m_cachedGraphics->FillEllipse(&circle_brush, x + LEFT_MARGIN, y + icon_y_offset, icon_size, icon_size); RECT text_rect = { x + LEFT_MARGIN + icon_size + 4, y, x + w, y + h }; COLORREF value_text_color = CalculateTextColor(dark_mode); SetTextColor(dc, value_text_color); SetBkMode(dc, TRANSPARENT); DrawTextW(dc, GetItemValueText(), -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE); }
+
+inline COLORREF CNvidiaMonitorItem::CalculateTextColor(bool dark_mode) const
+{
+    const wchar_t* current_value = GetItemValueText();
+    if (wcscmp(current_value, L"过热") == 0) return RGB(217, 66, 53);
+    if (wcscmp(current_value, L"功耗") == 0) return RGB(246, 182, 78);
+    return dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
+}
+
+void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
+{
+    HDC dc = (HDC)hDC;
+    const int LEFT_MARGIN = 2;
+    int icon_size = min(w, h) - 2;
+    int icon_y_offset = (h - icon_size) / 2;
+    if (!m_cachedGraphics || m_lastHdc != dc) {
+        if (m_cachedGraphics) delete m_cachedGraphics;
+        m_cachedGraphics = new Graphics(dc);
+        m_cachedGraphics->SetSmoothingMode(SmoothingModeAntiAlias);
+        m_lastHdc = dc;
+    }
+    Color circle_color = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83);
+    SolidBrush circle_brush(circle_color);
+    m_cachedGraphics->FillEllipse(&circle_brush, x + LEFT_MARGIN, y + icon_y_offset, icon_size, icon_size);
+    RECT text_rect = { x + LEFT_MARGIN + icon_size + 4, y, x + w, y + h };
+    COLORREF value_text_color = CalculateTextColor(dark_mode);
+    SetTextColor(dc, value_text_color);
+    SetBkMode(dc, TRANSPARENT);
+    DrawTextW(dc, GetItemValueText(), -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+}
 
 // =================================================================
 // CHardwareMonitorItem implementation
@@ -170,7 +282,7 @@ void CCPUCoreBarsPlugin::DataRequired()
     }
     if (m_gpu_item) { bool has_error = (m_cached_whea_count > 0 || m_cached_nvlddmkm_count > 0); m_gpu_item->SetSystemErrorStatus(has_error); }
 }
-const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"性能/错误/温度监控"; case TMI_DESCRIPTION: return L"CPU核心/GPU受限/WHEA错误/硬件温度"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"3.9.5"; default: return L""; } }
+const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"性能/错误/温度监控"; case TMI_DESCRIPTION: return L"CPU核心/GPU受限/WHEA错误/硬件温度"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"3.9.6"; default: return L""; } }
 void CCPUCoreBarsPlugin::InitNVML()
 {
     m_nvml_dll = LoadLibrary(L"nvml.dll");
@@ -191,7 +303,7 @@ void CCPUCoreBarsPlugin::InitHardwareMonitor()
 {
     try
     {
-        m_updateVisitor = gcnew HardwareMonitor::UpdateVisitor(); // Use correct namespace
+        m_updateVisitor = gcnew HardwareMonitor::UpdateVisitor();
         m_computer = gcnew Computer();
         m_computer->Open();
         m_computer->IsCpuEnabled = true;
