@@ -5,7 +5,8 @@
 
 using namespace System;
 using namespace System::Runtime::InteropServices;
-// Use the full namespace for clarity
+// Use the full namespaces for clarity
+using namespace LibreHardwareMonitor;
 using namespace LibreHardwareMonitor::Hardware;
 
 // =================================================================
@@ -172,7 +173,7 @@ void CCPUCoreBarsPlugin::DataRequired()
     }
     if (m_gpu_item) { bool has_error = (m_cached_whea_count > 0 || m_cached_nvlddmkm_count > 0); m_gpu_item->SetSystemErrorStatus(has_error); }
 }
-const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"性能/错误/温度监控"; case TMI_DESCRIPTION: return L"CPU核心/GPU受限/WHEA错误/硬件温度"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"3.9.1"; default: return L""; } }
+const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"性能/错误/温度监控"; case TMI_DESCRIPTION: return L"CPU核心/GPU受限/WHEA错误/硬件温度"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"3.9.2"; default: return L""; } }
 void CCPUCoreBarsPlugin::InitNVML()
 {
     m_nvml_dll = LoadLibrary(L"nvml.dll");
