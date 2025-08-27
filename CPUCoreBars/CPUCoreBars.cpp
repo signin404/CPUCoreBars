@@ -349,8 +349,7 @@ void CTempMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark
     RECT rect = { x, y, x + w, y + h };
 
     // Draw background
-    COLORREF bg_color = dark_mode ? RGB(0, 0, 0) : RGB(0, 0, 0);
-    HBRUSH bg_brush = CreateSolidBrush(bg_color);
+    HBRUSH bg_brush = CreateSolidBrush(RGB(0, 0, 0));
     FillRect(dc, &rect, bg_brush);
     DeleteObject(bg_brush);
 
@@ -409,9 +408,9 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
 
     // 创建并添加温度监控项
     if (m_gpu_item) m_all_items.push_back(m_gpu_item);
-    m_cpu_temp_item = new CTempMonitorItem(L"CPU Temperature", L"cpu_temp", L"");
+    m_cpu_temp_item = new CTempMonitorItem(L"CPU温度(动态颜色)", L"cpu_temp", L"");
     m_all_items.push_back(m_cpu_temp_item);
-    m_gpu_temp_item = new CTempMonitorItem(L"GPU Temperature", L"gpu_temp", L"");
+    m_gpu_temp_item = new CTempMonitorItem(L"GPU温度(动态颜色)", L"gpu_temp", L"");
     m_all_items.push_back(m_gpu_temp_item);
 }
 
