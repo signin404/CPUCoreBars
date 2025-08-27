@@ -16,8 +16,9 @@
 #using <System.dll>
 #using "LibreHardwareMonitorLib.dll"
 
-// Use the Gdiplus namespace to simplify type names
+// Use namespaces to simplify type names
 using namespace Gdiplus;
+using namespace LibreHardwareMonitor::Hardware;
 
 // =================================================================
 // CPU Core Item
@@ -132,7 +133,7 @@ public:
     const wchar_t* GetInfo(PluginInfoIndex index) override;
 
     // Public member to allow CHardwareMonitorItem to access the computer object
-    gcroot<LibreHardwareMonitor::Hardware::Computer^> m_computer;
+    gcroot<Computer^> m_computer;
 
 private:
     CCPUCoreBarsPlugin();
@@ -177,8 +178,7 @@ private:
     DWORD m_last_error_check_time;
     static const DWORD ERROR_CHECK_INTERVAL_MS = 60000;
 
-    // Correctly qualify UpdateVisitor with its full, proper namespace
-    gcroot<LibreHardwareMonitor::Hardware::UpdateVisitor^> m_updateVisitor;
+    gcroot<UpdateVisitor^> m_updateVisitor;
     CHardwareMonitorItem* m_cpu_temp_item = nullptr;
     CHardwareMonitorItem* m_gpu_temp_item = nullptr;
 };
