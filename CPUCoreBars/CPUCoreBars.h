@@ -126,4 +126,56 @@ public:
     static CCPUCoreBarsPlugin& Instance();
     IPluginItem* GetItem(int index) override;
     void DataRequired() override;
-    const wchar_
+    const wchar_t* GetInfo(PluginInfoIndex index) override;
+    void OnMonitorInfo(const ITMPlugin::MonitorInfo& monitor_info) override; // <-- FIX: Added ITMPlugin:: scope
+
+private:
+    CCPUCoreBarsPlugin();
+    ~CCPUCoreBarsPlugin();
+    CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
+    CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
+    
+    // 原有函数
+    void UpdateCpuUsage();
+    void DetectCoreTypes();
+    void InitNVML();
+    void ShutdownNVML();
+    void UpdateGpuLimitReason();
+    void UpdateWheaErrorCount();
+    void UpdateNvlddmkmErrorCount();
+    
+    // 新增：优化的事件日志查询函数
+    DWORD QueryEventLogCount(LPCWSTR provider_name);
+
+    // 原有成员变量
+    std::vector<IPluginItem*> m_all_items; // A single vector to hold all items
+    int m_num_cores;
+    PDH_HQUERY m_query = nullptr;
+    std::vector<PDH_HCOUNTER> m_counters;
+    std::vector<BYTE> m_core_efficiency;
+    CNvidiaMonitorItem* m_gpu_item = nullptr;
+    bool m_nvml_initialized = false;
+    HMODULE m_nvml_dll = nullptr;
+    nvmlDevice_t m_nvml_device;
+    int m_whea_error_count = 0;
+    int m_nvlddmkm_error_count = 0;
+
+    // 新增：温度监控项
+    CTempMonitorItem* m_cpu_temp_item = nullptr;
+    CTempMonitorItem* m_gpu_temp_item = nullptr;
+    int m_cpu_temp = 0;
+    int m_gpu_temp = 0;
+
+    ULONG_PTR m_gdiplusToken;
+
+    decltype(nvmlInit_v2)* pfn_nvmlInit;
+    decltype(nvmlShutdown)* pfn_nvmlShutdown;
+    decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
+    decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
+    
+    // 新增：事件日志查询缓存和频率控制
+    DWORD m_cached_whea_count;
+    DWORD m_cached_nvlddmkm_count;
+    DWORD m_last_error_check_time;
+    static const DWORD ERROR_CHECK_INTERVAL_MS = 60000; // 60秒检查间隔
+};

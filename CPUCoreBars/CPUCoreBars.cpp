@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -334,7 +334,7 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
     for (int i = 0; i < m_num_cores; ++i)
     {
         bool is_e_core = (m_core_efficiency[i] == 0);
-        m_items.push_back(new CCpuUsageItem(i, is_e_core));
+        m_all_items.push_back(new CCpuUsageItem(i, is_e_core));
     }
     if (PdhOpenQuery(nullptr, 0, &m_query) == ERROR_SUCCESS)
     {
@@ -349,45 +349,27 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
     }
     InitNVML();
 
-    // 创建温度监控项
+    // 创建并添加温度监控项
     m_cpu_temp_item = new CTempMonitorItem(L"CPU Temperature", L"cpu_temp", L"CPU");
     m_gpu_temp_item = new CTempMonitorItem(L"GPU Temperature", L"gpu_temp", L"GPU");
+    if (m_gpu_item) m_all_items.push_back(m_gpu_item);
+    if (m_cpu_temp_item) m_all_items.push_back(m_cpu_temp_item);
+    if (m_gpu_temp_item) m_all_items.push_back(m_gpu_temp_item);
 }
 
 CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
 {
     if (m_query) PdhCloseQuery(m_query);
-    for (auto item : m_items) delete item;
-    if (m_gpu_item) delete m_gpu_item;
-    if (m_cpu_temp_item) delete m_cpu_temp_item;
-    if (m_gpu_temp_item) delete m_gpu_temp_item;
+    for (auto item : m_all_items) delete item;
     ShutdownNVML();
     GdiplusShutdown(m_gdiplusToken);
 }
 
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
 {
-    if (index < m_num_cores) {
-        return m_items[index];
+    if (index >= 0 && index < m_all_items.size()) {
+        return m_all_items[index];
     }
-    
-    int current_index = m_num_cores;
-    if (m_gpu_item != nullptr) {
-        if (index == current_index)
-            return m_gpu_item;
-        current_index++;
-    }
-    if (m_cpu_temp_item != nullptr) {
-        if (index == current_index)
-            return m_cpu_temp_item;
-        current_index++;
-    }
-    if (m_gpu_temp_item != nullptr) {
-        if (index == current_index)
-            return m_gpu_temp_item;
-        current_index++;
-    }
-
     return nullptr;
 }
 
@@ -414,7 +396,7 @@ void CCPUCoreBarsPlugin::DataRequired()
     }
 }
 
-void CCPUCoreBarsPlugin::OnMonitorInfo(const MonitorInfo& monitor_info)
+void CCPUCoreBarsPlugin::OnMonitorInfo(const ITMPlugin::MonitorInfo& monitor_info) // <-- FIX: Added ITMPlugin:: scope
 {
     // 从主程序获取温度信息
     m_cpu_temp = monitor_info.cpu_temperature;
@@ -497,9 +479,16 @@ void CCPUCoreBarsPlugin::UpdateCpuUsage()
         for (int i = 0; i < m_num_cores; ++i) {
             PDH_FMT_COUNTERVALUE value;
             if (PdhGetFormattedCounterValue(m_counters[i], PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS) {
-                m_items[i]->SetUsage(value.doubleValue / 100.0);
+                // The item is now of type IPluginItem*, so we need to cast it to access SetUsage
+                if(auto cpu_item = dynamic_cast<CCpuUsageItem*>(m_all_items[i]))
+                {
+                    cpu_item->SetUsage(value.doubleValue / 100.0);
+                }
             } else {
-                m_items[i]->SetUsage(0.0);
+                if(auto cpu_item = dynamic_cast<CCpuUsageItem*>(m_all_items[i]))
+                {
+                    cpu_item->SetUsage(0.0);
+                }
             }
         }
     }
