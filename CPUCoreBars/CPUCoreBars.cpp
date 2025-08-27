@@ -457,7 +457,7 @@ void CCPUCoreBarsPlugin::DataRequired()
 void CCPUCoreBarsPlugin::OnMonitorInfo(const ITMPlugin::MonitorInfo& monitor_info)
 {
     // 从主程序获取温度信息
-    m_cpu_temp = monitor_info.cpu_core_max;
+    m_cpu_temp = monitor_info.cpu_temperature;
     m_gpu_temp = monitor_info.gpu_temperature;
 }
 
