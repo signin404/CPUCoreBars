@@ -1,4 +1,4 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -267,6 +267,50 @@ void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error)
     m_has_system_error = has_error;
 }
 
+// =================================================================
+// CTempMonitorItem implementation
+// =================================================================
+CTempMonitorItem::CTempMonitorItem(const wchar_t* name, const wchar_t* id, const wchar_t* label)
+{
+    wcscpy_s(m_item_name, name);
+    wcscpy_s(m_item_id, id);
+    wcscpy_s(m_label, label);
+    wcscpy_s(m_value_text, L"N/A");
+}
+
+const wchar_t* CTempMonitorItem::GetItemName() const
+{
+    return m_item_name;
+}
+
+const wchar_t* CTempMonitorItem::GetItemId() const
+{
+    return m_item_id;
+}
+
+const wchar_t* CTempMonitorItem::GetItemLableText() const
+{
+    return m_label;
+}
+
+const wchar_t* CTempMonitorItem::GetItemValueText() const
+{
+    return m_value_text;
+}
+
+const wchar_t* CTempMonitorItem::GetItemValueSampleText() const
+{
+    return L"100°C";
+}
+
+void CTempMonitorItem::SetValue(int temp)
+{
+    if (temp > 0)
+        swprintf_s(m_value_text, L"%d°C", temp);
+    else
+        wcscpy_s(m_value_text, L"N/A");
+}
+
 
 // =================================================================
 // CCPUCoreBarsPlugin implementation - 优化版本
@@ -304,6 +348,10 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
         PdhCollectQueryData(m_query);
     }
     InitNVML();
+
+    // 创建温度监控项
+    m_cpu_temp_item = new CTempMonitorItem(L"CPU Temperature", L"cpu_temp", L"CPU");
+    m_gpu_temp_item = new CTempMonitorItem(L"GPU Temperature", L"gpu_temp", L"GPU");
 }
 
 CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
@@ -311,6 +359,8 @@ CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
     if (m_query) PdhCloseQuery(m_query);
     for (auto item : m_items) delete item;
     if (m_gpu_item) delete m_gpu_item;
+    if (m_cpu_temp_item) delete m_cpu_temp_item;
+    if (m_gpu_temp_item) delete m_gpu_temp_item;
     ShutdownNVML();
     GdiplusShutdown(m_gdiplusToken);
 }
@@ -320,9 +370,24 @@ IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
     if (index < m_num_cores) {
         return m_items[index];
     }
-    if (index == m_num_cores && m_gpu_item != nullptr) {
-        return m_gpu_item;
+    
+    int current_index = m_num_cores;
+    if (m_gpu_item != nullptr) {
+        if (index == current_index)
+            return m_gpu_item;
+        current_index++;
     }
+    if (m_cpu_temp_item != nullptr) {
+        if (index == current_index)
+            return m_cpu_temp_item;
+        current_index++;
+    }
+    if (m_gpu_temp_item != nullptr) {
+        if (index == current_index)
+            return m_gpu_temp_item;
+        current_index++;
+    }
+
     return nullptr;
 }
 
@@ -331,7 +396,11 @@ void CCPUCoreBarsPlugin::DataRequired()
     UpdateCpuUsage();
     UpdateGpuLimitReason();
     
-    // 减少事件日志查询频率 - 30秒检查一次
+    // 更新温度项的文本
+    if (m_cpu_temp_item) m_cpu_temp_item->SetValue(m_cpu_temp);
+    if (m_gpu_temp_item) m_gpu_temp_item->SetValue(m_gpu_temp);
+
+    // 减少事件日志查询频率 - 60秒检查一次
     DWORD current_time = GetTickCount();
     if (current_time - m_last_error_check_time > ERROR_CHECK_INTERVAL_MS) {
         UpdateWheaErrorCount();
@@ -345,15 +414,22 @@ void CCPUCoreBarsPlugin::DataRequired()
     }
 }
 
+void CCPUCoreBarsPlugin::OnMonitorInfo(const MonitorInfo& monitor_info)
+{
+    // 从主程序获取温度信息
+    m_cpu_temp = monitor_info.cpu_temperature;
+    m_gpu_temp = monitor_info.gpu_temperature;
+}
+
 const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index) {
     case TMI_NAME: return L"性能/错误监控";
-    case TMI_DESCRIPTION: return L"CPU核心条形图/GPU受限&错误/WHEA错误";
+    case TMI_DESCRIPTION: return L"CPU核心条形图/GPU受限&错误/WHEA错误/温度";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.6.0";
+    case TMI_VERSION: return L"3.7.0";
     default: return L"";
     }
 }

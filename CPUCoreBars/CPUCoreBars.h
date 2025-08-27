@@ -92,6 +92,30 @@ private:
     mutable HDC m_lastHdc;
 };
 
+// =================================================================
+// Temperature Item (for CPU and GPU)
+// =================================================================
+class CTempMonitorItem : public IPluginItem
+{
+public:
+    CTempMonitorItem(const wchar_t* name, const wchar_t* id, const wchar_t* label);
+    virtual ~CTempMonitorItem() = default;
+
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+
+    void SetValue(int temp);
+
+private:
+    wchar_t m_item_name[32];
+    wchar_t m_item_id[32];
+    wchar_t m_label[16];
+    wchar_t m_value_text[32];
+};
+
 
 // =================================================================
 // Main Plugin Class - 优化版本
@@ -102,49 +126,4 @@ public:
     static CCPUCoreBarsPlugin& Instance();
     IPluginItem* GetItem(int index) override;
     void DataRequired() override;
-    const wchar_t* GetInfo(PluginInfoIndex index) override;
-
-private:
-    CCPUCoreBarsPlugin();
-    ~CCPUCoreBarsPlugin();
-    CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
-    CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
-    
-    // 原有函数
-    void UpdateCpuUsage();
-    void DetectCoreTypes();
-    void InitNVML();
-    void ShutdownNVML();
-    void UpdateGpuLimitReason();
-    void UpdateWheaErrorCount();
-    void UpdateNvlddmkmErrorCount();
-    
-    // 新增：优化的事件日志查询函数
-    DWORD QueryEventLogCount(LPCWSTR provider_name);
-
-    // 原有成员变量
-    std::vector<CCpuUsageItem*> m_items;
-    int m_num_cores;
-    PDH_HQUERY m_query = nullptr;
-    std::vector<PDH_HCOUNTER> m_counters;
-    std::vector<BYTE> m_core_efficiency;
-    CNvidiaMonitorItem* m_gpu_item = nullptr;
-    bool m_nvml_initialized = false;
-    HMODULE m_nvml_dll = nullptr;
-    nvmlDevice_t m_nvml_device;
-    int m_whea_error_count = 0;
-    int m_nvlddmkm_error_count = 0;
-
-    ULONG_PTR m_gdiplusToken;
-
-    decltype(nvmlInit_v2)* pfn_nvmlInit;
-    decltype(nvmlShutdown)* pfn_nvmlShutdown;
-    decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
-    decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
-    
-    // 新增：事件日志查询缓存和频率控制
-    DWORD m_cached_whea_count;
-    DWORD m_cached_nvlddmkm_count;
-    DWORD m_last_error_check_time;
-    static const DWORD ERROR_CHECK_INTERVAL_MS = 60000; // 60秒检查间隔
-};
+    const wchar_
