@@ -288,7 +288,7 @@ CTempMonitorItem::CTempMonitorItem(const wchar_t* name, const wchar_t* id, const
     
     m_width = label_size.cx + value_size.cx
 
-    SelectObject(hdc， hOldFont);
+    SelectObject(hdc, hOldFont);
     ReleaseDC(NULL, hdc);
 }
 
