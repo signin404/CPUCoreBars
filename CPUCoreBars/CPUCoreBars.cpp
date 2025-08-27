@@ -267,6 +267,107 @@ void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error)
     m_has_system_error = has_error;
 }
 
+// =================================================================
+// CTempMonitorItem implementation - With Custom Colors
+// =================================================================
+CTempMonitorItem::CTempMonitorItem(const wchar_t* name, const wchar_t* id, const wchar_t* label)
+{
+    wcscpy_s(m_item_name, name);
+    wcscpy_s(m_item_id, id);
+    wcscpy_s(m_label, label);
+    wcscpy_s(m_value_text, L"N/A");
+
+    // Calculate width
+    HDC hdc = GetDC(NULL);
+    HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+
+    SIZE label_size, value_size;
+    GetTextExtentPoint32W(hdc, m_label, (int)wcslen(m_label), &label_size);
+    GetTextExtentPoint32W(hdc, GetItemValueSampleText(), (int)wcslen(GetItemValueSampleText()), &value_size);
+    
+    m_width = label_size.cx + value_size.cx + 4; // 4 pixels for padding
+
+    SelectObject(hdc, hOldFont);
+    ReleaseDC(NULL, hdc);
+}
+
+const wchar_t* CTempMonitorItem::GetItemName() const
+{
+    return m_item_name;
+}
+
+const wchar_t* CTempMonitorItem::GetItemId() const
+{
+    return m_item_id;
+}
+
+const wchar_t* CTempMonitorItem::GetItemLableText() const
+{
+    return m_label;
+}
+
+const wchar_t* CTempMonitorItem::GetItemValueText() const
+{
+    return m_value_text;
+}
+
+const wchar_t* CTempMonitorItem::GetItemValueSampleText() const
+{
+    return L"99°C";
+}
+
+bool CTempMonitorItem::IsCustomDraw() const
+{
+    return true;
+}
+
+int CTempMonitorItem::GetItemWidth() const
+{
+    return m_width;
+}
+
+void CTempMonitorItem::SetValue(int temp)
+{
+    m_temp = temp;
+    if (temp > 0)
+        swprintf_s(m_value_text, L"%d°C", temp);
+    else
+        wcscpy_s(m_value_text, L"N/A");
+}
+
+COLORREF CTempMonitorItem::GetTemperatureColor() const
+{
+    if (m_temp >= 80) return RGB(217, 66, 53); // Red
+    if (m_temp >= 70) return RGB(246, 182, 78); // Orange
+    return RGB(118, 202, 83);                  // Green
+}
+
+void CTempMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
+{
+    HDC dc = (HDC)hDC;
+    RECT rect = { x, y, x + w, y + h };
+
+    // Draw background
+    HBRUSH bg_brush = CreateSolidBrush(RGB(0, 0, 0));
+    FillRect(dc, &rect, bg_brush);
+    DeleteObject(bg_brush);
+
+    SetBkMode(dc, TRANSPARENT);
+
+    // Draw label
+    COLORREF label_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
+    SetTextColor(dc, label_color);
+    RECT label_rect = rect;
+    DrawTextW(dc, m_label, -1, &label_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    // Draw value
+    COLORREF value_color = (m_temp > 0) ? GetTemperatureColor() : label_color;
+    SetTextColor(dc, value_color);
+    RECT value_rect = rect;
+    DrawTextW(dc, m_value_text, -1, &value_rect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+}
+
 
 // =================================================================
 // CCPUCoreBarsPlugin implementation - 优化版本
@@ -290,7 +391,7 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
     for (int i = 0; i < m_num_cores; ++i)
     {
         bool is_e_core = (m_core_efficiency[i] == 0);
-        m_items.push_back(new CCpuUsageItem(i, is_e_core));
+        m_all_items.push_back(new CCpuUsageItem(i, is_e_core));
     }
     if (PdhOpenQuery(nullptr, 0, &m_query) == ERROR_SUCCESS)
     {
@@ -304,24 +405,27 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
         PdhCollectQueryData(m_query);
     }
     InitNVML();
+
+    // 创建并添加温度监控项
+    if (m_gpu_item) m_all_items.push_back(m_gpu_item);
+    m_cpu_temp_item = new CTempMonitorItem(L"CPU温度(动态颜色)", L"cpu_temp", L"");
+    m_all_items.push_back(m_cpu_temp_item);
+    m_gpu_temp_item = new CTempMonitorItem(L"GPU温度(动态颜色)", L"gpu_temp", L"");
+    m_all_items.push_back(m_gpu_temp_item);
 }
 
 CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
 {
     if (m_query) PdhCloseQuery(m_query);
-    for (auto item : m_items) delete item;
-    if (m_gpu_item) delete m_gpu_item;
+    for (auto item : m_all_items) delete item;
     ShutdownNVML();
     GdiplusShutdown(m_gdiplusToken);
 }
 
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
 {
-    if (index < m_num_cores) {
-        return m_items[index];
-    }
-    if (index == m_num_cores && m_gpu_item != nullptr) {
-        return m_gpu_item;
+    if (index >= 0 && static_cast<size_t>(index) < m_all_items.size()) {
+        return m_all_items[index];
     }
     return nullptr;
 }
@@ -331,7 +435,11 @@ void CCPUCoreBarsPlugin::DataRequired()
     UpdateCpuUsage();
     UpdateGpuLimitReason();
     
-    // 减少事件日志查询频率 - 30秒检查一次
+    // 更新温度项的文本
+    if (m_cpu_temp_item) m_cpu_temp_item->SetValue(m_cpu_temp);
+    if (m_gpu_temp_item) m_gpu_temp_item->SetValue(m_gpu_temp);
+
+    // 减少事件日志查询频率 - 60秒检查一次
     DWORD current_time = GetTickCount();
     if (current_time - m_last_error_check_time > ERROR_CHECK_INTERVAL_MS) {
         UpdateWheaErrorCount();
@@ -345,6 +453,13 @@ void CCPUCoreBarsPlugin::DataRequired()
     }
 }
 
+void CCPUCoreBarsPlugin::OnMonitorInfo(const ITMPlugin::MonitorInfo& monitor_info)
+{
+    // 从主程序获取温度信息
+    m_cpu_temp = monitor_info.cpu_temperature;
+    m_gpu_temp = monitor_info.gpu_temperature;
+}
+
 const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index) {
@@ -353,7 +468,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.6.0";
+    case TMI_VERSION: return L"3.8.0";
     default: return L"";
     }
 }
@@ -363,20 +478,20 @@ void CCPUCoreBarsPlugin::InitNVML()
     m_nvml_dll = LoadLibrary(L"nvml.dll");
     if (!m_nvml_dll) return;
 
-    pfn_nvmlInit = (decltype(pfn_nvmlInit))GetProcAddress(m_nvml_dll, "nvmlInit_v2");
-    pfn_nvmlShutdown = (decltype(pfn_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown");
-    pfn_nvmlDeviceGetHandleByIndex = (decltype(pfn_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
-    pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
+    p_nvmlInit = (decltype(p_nvmlInit))GetProcAddress(m_nvml_dll, "nvmlInit_v2");
+    p_nvmlShutdown = (decltype(p_nvmlShutdown))GetProcAddress(m_nvml_dll, "nvmlShutdown");
+    p_nvmlDeviceGetHandleByIndex = (decltype(p_nvmlDeviceGetHandleByIndex))GetProcAddress(m_nvml_dll, "nvmlDeviceGetHandleByIndex_v2");
+    p_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(p_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
 
-    if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons) {
+    if (!p_nvmlInit || !p_nvmlShutdown || !p_nvmlDeviceGetHandleByIndex || !p_nvmlDeviceGetCurrentClocksThrottleReasons) {
         ShutdownNVML();
         return;
     }
-    if (pfn_nvmlInit() != NVML_SUCCESS) {
+    if (p_nvmlInit() != NVML_SUCCESS) {
         ShutdownNVML();
         return;
     }
-    if (pfn_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS) {
+    if (p_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS) {
         ShutdownNVML();
         return;
     }
@@ -386,8 +501,8 @@ void CCPUCoreBarsPlugin::InitNVML()
 
 void CCPUCoreBarsPlugin::ShutdownNVML()
 {
-    if (m_nvml_initialized && pfn_nvmlShutdown) {
-        pfn_nvmlShutdown();
+    if (m_nvml_initialized && p_nvmlShutdown) {
+        p_nvmlShutdown();
     }
     if (m_nvml_dll) {
         FreeLibrary(m_nvml_dll);
@@ -401,7 +516,7 @@ void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
     if (!m_nvml_initialized || !m_gpu_item) return;
 
     unsigned long long reasons = 0;
-    if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) {
+    if (p_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) {
         if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
         else if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
         else if (reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) { m_gpu_item->SetValue(L"功耗"); }
@@ -421,9 +536,15 @@ void CCPUCoreBarsPlugin::UpdateCpuUsage()
         for (int i = 0; i < m_num_cores; ++i) {
             PDH_FMT_COUNTERVALUE value;
             if (PdhGetFormattedCounterValue(m_counters[i], PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS) {
-                m_items[i]->SetUsage(value.doubleValue / 100.0);
+                if(auto cpu_item = dynamic_cast<CCpuUsageItem*>(m_all_items[i]))
+                {
+                    cpu_item->SetUsage(value.doubleValue / 100.0);
+                }
             } else {
-                m_items[i]->SetUsage(0.0);
+                if(auto cpu_item = dynamic_cast<CCpuUsageItem*>(m_all_items[i]))
+                {
+                    cpu_item->SetUsage(0.0);
+                }
             }
         }
     }
