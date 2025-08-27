@@ -1,4 +1,7 @@
-﻿#pragma once
+#pragma once
+
+// ADDED: This header must import the assembly it depends on.
+#using "LibreHardwareMonitorLib.dll"
 
 using namespace LibreHardwareMonitor::Hardware;
 
@@ -12,5 +15,4 @@ namespace HardwareMonitor
         virtual void VisitSensor(ISensor^ sensor);
         virtual void VisitParameter(IParameter^ parameter);
     };
-
 }
