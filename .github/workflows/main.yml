@@ -20,14 +20,12 @@ jobs:
     - name: Set up MSBuild
       uses: microsoft/setup-msbuild@v2
 
+    # 修正：在 msbuild 命令中添加 /clr 支持
     - name: Build the solution
-      run: msbuild CPUCoreBars.sln -p:Configuration=Release -p:Platform=x64
+      run: msbuild CPUCoreBars.sln -p:Configuration=Release -p:Platform=x64 -p:CLRSupport=true
 
-    # 修正了 DLL 的路径
     - name: Upload DLL artifact
       uses: actions/upload-artifact@v4
       with:
         name: cpu-core-bars-plugin-dll
-        # 修正：移除项目文件夹名 CPUCoreBars/
         path: x64/Release/CPUCoreBars.dll
-        
