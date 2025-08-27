@@ -93,7 +93,7 @@ private:
 };
 
 // =================================================================
-// Temperature Item (for CPU and GPU)
+// Temperature Item (for CPU and GPU) - With Custom Colors
 // =================================================================
 class CTempMonitorItem : public IPluginItem
 {
@@ -107,13 +107,22 @@ public:
     const wchar_t* GetItemValueText() const override;
     const wchar_t* GetItemValueSampleText() const override;
 
+    // Custom drawing overrides
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+
     void SetValue(int temp);
 
 private:
+    COLORREF GetTemperatureColor() const;
+
     wchar_t m_item_name[32];
     wchar_t m_item_id[32];
     wchar_t m_label[16];
     wchar_t m_value_text[32];
+    int m_temp = 0;
+    int m_width = 0;
 };
 
 
@@ -127,7 +136,7 @@ public:
     IPluginItem* GetItem(int index) override;
     void DataRequired() override;
     const wchar_t* GetInfo(PluginInfoIndex index) override;
-    void OnMonitorInfo(const ITMPlugin::MonitorInfo& monitor_info) override; // <-- FIX: Added ITMPlugin:: scope
+    void OnMonitorInfo(const ITMPlugin::MonitorInfo& monitor_info) override;
 
 private:
     CCPUCoreBarsPlugin();
@@ -147,8 +156,8 @@ private:
     // 新增：优化的事件日志查询函数
     DWORD QueryEventLogCount(LPCWSTR provider_name);
 
-    // 原有成员变量
-    std::vector<IPluginItem*> m_all_items; // A single vector to hold all items
+    // 成员变量
+    std::vector<IPluginItem*> m_all_items;
     int m_num_cores;
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
@@ -160,7 +169,7 @@ private:
     int m_whea_error_count = 0;
     int m_nvlddmkm_error_count = 0;
 
-    // 新增：温度监控项
+    // 温度监控项
     CTempMonitorItem* m_cpu_temp_item = nullptr;
     CTempMonitorItem* m_gpu_temp_item = nullptr;
     int m_cpu_temp = 0;
@@ -168,12 +177,12 @@ private:
 
     ULONG_PTR m_gdiplusToken;
 
-    decltype(nvmlInit_v2)* pfn_nvmlInit;
-    decltype(nvmlShutdown)* pfn_nvmlShutdown;
-    decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
-    decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
+    decltype(nvmlInit_v2)* p_nvmlInit;
+    decltype(nvmlShutdown)* p_nvmlShutdown;
+    decltype(nvmlDeviceGetHandleByIndex_v2)* p_nvmlDeviceGetHandleByIndex;
+    decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* p_nvmlDeviceGetCurrentClocksThrottleReasons;
     
-    // 新增：事件日志查询缓存和频率控制
+    // 事件日志查询缓存和频率控制
     DWORD m_cached_whea_count;
     DWORD m_cached_nvlddmkm_count;
     DWORD m_last_error_check_time;
