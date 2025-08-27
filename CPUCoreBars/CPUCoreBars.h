@@ -8,6 +8,7 @@
 #include "PluginInterface.h"
 #include "nvml.h"
 #include <gcroot.h>
+#include "UpdateVisitor.h" // <-- ADDED: Include your custom visitor header
 
 // IMPORTANT: Import the managed assembly here so all types are fully defined.
 #pragma comment(lib, "pdh.lib")
@@ -178,7 +179,8 @@ private:
     DWORD m_last_error_check_time;
     static const DWORD ERROR_CHECK_INTERVAL_MS = 60000;
 
-    gcroot<UpdateVisitor^> m_updateVisitor;
+    // Correctly qualify your custom UpdateVisitor with its namespace
+    gcroot<HardwareMonitor::UpdateVisitor^> m_updateVisitor;
     CHardwareMonitorItem* m_cpu_temp_item = nullptr;
     CHardwareMonitorItem* m_gpu_temp_item = nullptr;
 };

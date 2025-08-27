@@ -1,13 +1,10 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - Final Corrected Version
+// CPUCoreBars/CPUCoreBars.cpp - Final Corrected Version
 #include "CPUCoreBars.h"
 #include <string>
 #include <winevt.h>
 
 using namespace System;
 using namespace System::Runtime::InteropServices;
-
-// The 'using namespace LibreHardwareMonitor::Hardware' is now in the header,
-// so all types can be used without qualification here.
 
 // =================================================================
 // Helper functions
@@ -173,7 +170,7 @@ void CCPUCoreBarsPlugin::DataRequired()
     }
     if (m_gpu_item) { bool has_error = (m_cached_whea_count > 0 || m_cached_nvlddmkm_count > 0); m_gpu_item->SetSystemErrorStatus(has_error); }
 }
-const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"性能/错误/温度监控"; case TMI_DESCRIPTION: return L"CPU核心/GPU受限/WHEA错误/硬件温度"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"3.9.4"; default: return L""; } }
+const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index) { switch (index) { case TMI_NAME: return L"性能/错误/温度监控"; case TMI_DESCRIPTION: return L"CPU核心/GPU受限/WHEA错误/硬件温度"; case TMI_AUTHOR: return L"Your Name"; case TMI_COPYRIGHT: return L"Copyright (C) 2025"; case TMI_URL: return L""; case TMI_VERSION: return L"3.9.5"; default: return L""; } }
 void CCPUCoreBarsPlugin::InitNVML()
 {
     m_nvml_dll = LoadLibrary(L"nvml.dll");
@@ -194,7 +191,7 @@ void CCPUCoreBarsPlugin::InitHardwareMonitor()
 {
     try
     {
-        m_updateVisitor = gcnew UpdateVisitor();
+        m_updateVisitor = gcnew HardwareMonitor::UpdateVisitor(); // Use correct namespace
         m_computer = gcnew Computer();
         m_computer->Open();
         m_computer->IsCpuEnabled = true;
