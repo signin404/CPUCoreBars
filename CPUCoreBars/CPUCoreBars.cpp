@@ -1,4 +1,4 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化和硬件监控集成版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -8,13 +8,65 @@
 #pragma comment(lib, "wevtapi.lib")
 #pragma comment(lib, "gdiplus.lib")
 
+// Add .NET references for LibreHardwareMonitor
+#using <System.dll>
+#using "LibreHardwareMonitorLib.dll"
+
 using namespace Gdiplus;
+using namespace System;
+using namespace System::Runtime::InteropServices;
+using namespace LibreHardwareMonitor::Hardware;
 
 // =================================================================
-// CCpuUsageItem implementation - 优化版本
+// Helper functions (adapted from HardwareMonitorHelper and Common)
 // =================================================================
+namespace HardwareMonitor
+{
+    // Helper to convert System::String to std::wstring
+    std::wstring StringToStdWstring(String^ s)
+    {
+        if (s == nullptr)
+            return L"";
+        const wchar_t* chars = (const wchar_t*)(Marshal::StringToHGlobalUni(s)).ToPointer();
+        std::wstring os = chars;
+        Marshal::FreeHGlobal(IntPtr((void*)chars));
+        return os;
+    }
 
-// 静态成员变量定义
+    // Helper to get a unique identifier for a sensor
+    String^ GetSensorIdentifier(ISensor^ sensor)
+    {
+        String^ path;
+        IHardware^ hardware = sensor->Hardware;
+        while (hardware != nullptr)
+        {
+            path = hardware->Identifier + "/" + path;
+            hardware = hardware->Parent;
+        }
+        path += sensor->SensorType.ToString();
+        path += "/";
+        path += sensor->Name;
+        return path;
+    }
+
+    // Helper to format sensor value
+    String^ GetSensorValueText(ISensor^ sensor)
+    {
+        if (sensor->Value.HasValue)
+        {
+            float value = sensor->Value.Value;
+            String^ unit = L"°C";
+            String^ formatString = "F0"; // No decimal places for temperature
+            return value.ToString(formatString) + unit;
+        }
+        return "--";
+    }
+}
+
+
+// =================================================================
+// CCpuUsageItem implementation (unchanged from original)
+// =================================================================
 HFONT CCpuUsageItem::s_symbolFont = nullptr;
 int CCpuUsageItem::s_fontRefCount = 0;
 
@@ -23,25 +75,20 @@ CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core)
       m_cachedBgBrush(nullptr), m_cachedBarBrush(nullptr),
       m_lastBgColor(0), m_lastBarColor(0), m_lastDarkMode(false)
 {
-    // 初始化静态字体（只创建一次）
     if (s_symbolFont == nullptr) {
         s_symbolFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
     }
     s_fontRefCount++;
-    
     swprintf_s(m_item_name, L"CPU Core %d", m_core_index);
     swprintf_s(m_item_id, L"cpu_core_%d", m_core_index);
 }
 
 CCpuUsageItem::~CCpuUsageItem()
 {
-    // 清理缓存的画刷
     if (m_cachedBgBrush) DeleteObject(m_cachedBgBrush);
     if (m_cachedBarBrush) DeleteObject(m_cachedBarBrush);
-    
-    // 减少字体引用计数
     s_fontRefCount--;
     if (s_fontRefCount == 0 && s_symbolFont) {
         DeleteObject(s_symbolFont);
@@ -49,56 +96,20 @@ CCpuUsageItem::~CCpuUsageItem()
     }
 }
 
-const wchar_t* CCpuUsageItem::GetItemName() const
-{
-    return m_item_name;
-}
-
-const wchar_t* CCpuUsageItem::GetItemId() const
-{
-    return m_item_id;
-}
-
-const wchar_t* CCpuUsageItem::GetItemLableText() const
-{
-    return L"";
-}
-
-const wchar_t* CCpuUsageItem::GetItemValueText() const
-{
-    return L"";
-}
-
-const wchar_t* CCpuUsageItem::GetItemValueSampleText() const
-{
-    return L"";
-}
-
-bool CCpuUsageItem::IsCustomDraw() const
-{
-    return true;
-}
-
-int CCpuUsageItem::GetItemWidth() const
-{
-    return 8;
-}
-
-void CCpuUsageItem::SetUsage(double usage)
-{
-    m_usage = max(0.0, min(1.0, usage));
-}
+const wchar_t* CCpuUsageItem::GetItemName() const { return m_item_name; }
+const wchar_t* CCpuUsageItem::GetItemId() const { return m_item_id; }
+const wchar_t* CCpuUsageItem::GetItemLableText() const { return L""; }
+const wchar_t* CCpuUsageItem::GetItemValueText() const { return L""; }
+const wchar_t* CCpuUsageItem::GetItemValueSampleText() const { return L""; }
+bool CCpuUsageItem::IsCustomDraw() const { return true; }
+int CCpuUsageItem::GetItemWidth() const { return 8; }
+void CCpuUsageItem::SetUsage(double usage) { m_usage = max(0.0, min(1.0, usage)); }
 
 inline COLORREF CCpuUsageItem::CalculateBarColor() const
 {
-    // 高使用率优先显示（性能优化：重新排列条件优先级）
-    if (m_usage >= 0.9) return RGB(217, 66, 53);  // 红色
-    if (m_usage >= 0.5) return RGB(246, 182, 78); // 橙色
-    
-    // 基于核心索引的颜色
-    if (m_core_index >= 12 && m_core_index <= 19) {
-        return RGB(217, 66, 53);  // 红色
-    }
+    if (m_usage >= 0.9) return RGB(217, 66, 53);
+    if (m_usage >= 0.5) return RGB(246, 182, 78);
+    if (m_core_index >= 12 && m_core_index <= 19) return RGB(217, 66, 53);
     return (m_core_index % 2 == 1) ? RGB(38, 160, 218) : RGB(118, 202, 83);
 }
 
@@ -108,8 +119,6 @@ void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
     SetTextColor(hDC, icon_color);
     SetBkMode(hDC, TRANSPARENT);
     const wchar_t* symbol = L"\u2618";
-    
-    // 使用缓存的静态字体
     if (s_symbolFont) {
         HGDIOBJ hOldFont = SelectObject(hDC, s_symbolFont);
         DrawTextW(hDC, symbol, -1, (LPRECT)&rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -121,8 +130,6 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 {
     HDC dc = (HDC)hDC;
     RECT rect = { x, y, x + w, y + h };
-    
-    // 使用缓存的背景画刷
     COLORREF bg_color = dark_mode ? RGB(32, 32, 32) : RGB(255, 255, 255);
     if (!m_cachedBgBrush || m_lastBgColor != bg_color || m_lastDarkMode != dark_mode) {
         if (m_cachedBgBrush) DeleteObject(m_cachedBgBrush);
@@ -131,92 +138,49 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
         m_lastDarkMode = dark_mode;
     }
     FillRect(dc, &rect, m_cachedBgBrush);
-
-    // 计算条形图颜色
     COLORREF bar_color = CalculateBarColor();
-    
-    // 使用缓存的条形画刷
     if (!m_cachedBarBrush || m_lastBarColor != bar_color) {
         if (m_cachedBarBrush) DeleteObject(m_cachedBarBrush);
         m_cachedBarBrush = CreateSolidBrush(bar_color);
         m_lastBarColor = bar_color;
     }
-
     int bar_height = static_cast<int>(h * m_usage);
     if (bar_height > 0) {
         RECT bar_rect = { x, y + (h - bar_height), x + w, y + h };
         FillRect(dc, &bar_rect, m_cachedBarBrush);
     }
-
     if (m_is_e_core) {
         DrawECoreSymbol(dc, rect, dark_mode);
     }
 }
 
-
 // =================================================================
-// CNvidiaMonitorItem implementation - 优化版本
+// CNvidiaMonitorItem implementation (unchanged from original)
 // =================================================================
-CNvidiaMonitorItem::CNvidiaMonitorItem()
-    : m_cachedGraphics(nullptr), m_lastHdc(nullptr)
+CNvidiaMonitorItem::CNvidiaMonitorItem() : m_cachedGraphics(nullptr), m_lastHdc(nullptr)
 {
     wcscpy_s(m_value_text, L"N/A");
-
     HDC hdc = GetDC(NULL);
     HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
     HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-
     const wchar_t* sample_value = GetItemValueSampleText();
     SIZE value_size;
     GetTextExtentPoint32W(hdc, sample_value, (int)wcslen(sample_value), &value_size);
-    
     m_width = 18 + 4 + value_size.cx;
-
     SelectObject(hdc, hOldFont);
     ReleaseDC(NULL, hdc);
 }
 
-CNvidiaMonitorItem::~CNvidiaMonitorItem()
-{
-    if (m_cachedGraphics) {
-        delete m_cachedGraphics;
-    }
-}
-
-const wchar_t* CNvidiaMonitorItem::GetItemName() const
-{
-    return L"GPU/WHEA";
-}
-
-const wchar_t* CNvidiaMonitorItem::GetItemId() const
-{
-    return L"gpu_system_status";
-}
-
-const wchar_t* CNvidiaMonitorItem::GetItemLableText() const
-{
-    return L"";
-}
-
-const wchar_t* CNvidiaMonitorItem::GetItemValueText() const
-{
-    return m_value_text;
-}
-
-const wchar_t* CNvidiaMonitorItem::GetItemValueSampleText() const
-{
-    return L"宽度";
-}
-
-bool CNvidiaMonitorItem::IsCustomDraw() const
-{
-    return true;
-}
-
-int CNvidiaMonitorItem::GetItemWidth() const
-{
-    return m_width;
-}
+CNvidiaMonitorItem::~CNvidiaMonitorItem() { if (m_cachedGraphics) delete m_cachedGraphics; }
+const wchar_t* CNvidiaMonitorItem::GetItemName() const { return L"GPU/WHEA"; }
+const wchar_t* CNvidiaMonitorItem::GetItemId() const { return L"gpu_system_status"; }
+const wchar_t* CNvidiaMonitorItem::GetItemLableText() const { return L""; }
+const wchar_t* CNvidiaMonitorItem::GetItemValueText() const { return m_value_text; }
+const wchar_t* CNvidiaMonitorItem::GetItemValueSampleText() const { return L"宽度"; }
+bool CNvidiaMonitorItem::IsCustomDraw() const { return true; }
+int CNvidiaMonitorItem::GetItemWidth() const { return m_width; }
+void CNvidiaMonitorItem::SetValue(const wchar_t* value) { wcscpy_s(m_value_text, value); }
+void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error) { m_has_system_error = has_error; }
 
 inline COLORREF CNvidiaMonitorItem::CalculateTextColor(bool dark_mode) const 
 {
@@ -229,47 +193,95 @@ inline COLORREF CNvidiaMonitorItem::CalculateTextColor(bool dark_mode) const
 void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode)
 {
     HDC dc = (HDC)hDC;
-    
     const int LEFT_MARGIN = 2;
     int icon_size = min(w, h) - 2;
     int icon_y_offset = (h - icon_size) / 2;
-
-    // 缓存Graphics对象
     if (!m_cachedGraphics || m_lastHdc != dc) {
         if (m_cachedGraphics) delete m_cachedGraphics;
         m_cachedGraphics = new Graphics(dc);
         m_cachedGraphics->SetSmoothingMode(SmoothingModeAntiAlias);
         m_lastHdc = dc;
     }
-    
-    // 使用缓存的Graphics对象绘制圆形
     Color circle_color = m_has_system_error ? Color(217, 66, 53) : Color(118, 202, 83);
     SolidBrush circle_brush(circle_color);
-    m_cachedGraphics->FillEllipse(&circle_brush, 
-        x + LEFT_MARGIN, y + icon_y_offset, icon_size, icon_size);
-
-    // --- 绘制文本 ---
+    m_cachedGraphics->FillEllipse(&circle_brush, x + LEFT_MARGIN, y + icon_y_offset, icon_size, icon_size);
     RECT text_rect = { x + LEFT_MARGIN + icon_size + 4, y, x + w, y + h };
     COLORREF value_text_color = CalculateTextColor(dark_mode);
-    
     SetTextColor(dc, value_text_color);
     SetBkMode(dc, TRANSPARENT);
     DrawTextW(dc, GetItemValueText(), -1, &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 }
 
-void CNvidiaMonitorItem::SetValue(const wchar_t* value)
+// =================================================================
+// CHardwareMonitorItem implementation - 新增
+// =================================================================
+CHardwareMonitorItem::CHardwareMonitorItem(const std::wstring& identifier, const std::wstring& label_text)
+    : m_identifier(identifier), m_label_text(label_text), m_value_text(L"--"), m_sample_text(L"100°C")
 {
-    wcscpy_s(m_value_text, value);
+    m_name = L"HWMon " + label_text;
+    m_id = L"hwmon_" + label_text;
 }
 
-void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error)
-{
-    m_has_system_error = has_error;
-}
+const wchar_t* CHardwareMonitorItem::GetItemName() const { return m_name.c_str(); }
+const wchar_t* CHardwareMonitorItem::GetItemId() const { return m_id.c_str(); }
+const wchar_t* CHardwareMonitorItem::GetItemLableText() const { return m_label_text.c_str(); }
+const wchar_t* CHardwareMonitorItem::GetItemValueText() const { return m_value_text.c_str(); }
+const wchar_t* CHardwareMonitorItem::GetItemValueSampleText() const { return m_sample_text.c_str(); }
+bool CHardwareMonitorItem::IsCustomDraw() const { return false; } // Use default drawing
+int CHardwareMonitorItem::GetItemWidth() const { return 0; } // Use default width
+void CHardwareMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) {} // Not used
 
+void CHardwareMonitorItem::UpdateValue()
+{
+    try
+    {
+        String^ identifier_str = gcnew String(m_identifier.c_str());
+        ISensor^ sensor = nullptr;
+
+        // Simplified sensor search
+        auto computer = CCPUCoreBarsPlugin::Instance().m_computer;
+        for each (IHardware^ hardware in computer->Hardware)
+        {
+            for each (ISensor^ s in hardware->Sensors)
+            {
+                if (HardwareMonitor::GetSensorIdentifier(s) == identifier_str)
+                {
+                    sensor = s;
+                    break;
+                }
+            }
+            if (sensor != nullptr) break;
+            for each (IHardware^ subHardware in hardware->SubHardware)
+            {
+                 for each (ISensor^ s in subHardware->Sensors)
+                 {
+                    if (HardwareMonitor::GetSensorIdentifier(s) == identifier_str)
+                    {
+                        sensor = s;
+                        break;
+                    }
+                 }
+                 if (sensor != nullptr) break;
+            }
+        }
+
+        if (sensor != nullptr)
+        {
+            m_value_text = HardwareMonitor::StringToStdWstring(HardwareMonitor::GetSensorValueText(sensor));
+        }
+        else
+        {
+            m_value_text = L"N/A";
+        }
+    }
+    catch (Exception^)
+    {
+        m_value_text = L"Error";
+    }
+}
 
 // =================================================================
-// CCPUCoreBarsPlugin implementation - 优化版本
+// CCPUCoreBarsPlugin implementation - 修改
 // =================================================================
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 {
@@ -290,7 +302,7 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
     for (int i = 0; i < m_num_cores; ++i)
     {
         bool is_e_core = (m_core_efficiency[i] == 0);
-        m_items.push_back(new CCpuUsageItem(i, is_e_core));
+        m_plugin_items.push_back(new CCpuUsageItem(i, is_e_core));
     }
     if (PdhOpenQuery(nullptr, 0, &m_query) == ERROR_SUCCESS)
     {
@@ -304,34 +316,37 @@ CCPUCoreBarsPlugin::CCPUCoreBarsPlugin()
         PdhCollectQueryData(m_query);
     }
     InitNVML();
+    InitHardwareMonitor();
 }
 
 CCPUCoreBarsPlugin::~CCPUCoreBarsPlugin()
 {
     if (m_query) PdhCloseQuery(m_query);
-    for (auto item : m_items) delete item;
-    if (m_gpu_item) delete m_gpu_item;
+    for (auto item : m_plugin_items) delete item;
     ShutdownNVML();
+    ShutdownHardwareMonitor();
     GdiplusShutdown(m_gdiplusToken);
 }
 
 IPluginItem* CCPUCoreBarsPlugin::GetItem(int index)
 {
-    if (index < m_num_cores) {
-        return m_items[index];
-    }
-    if (index == m_num_cores && m_gpu_item != nullptr) {
-        return m_gpu_item;
+    if (index >= 0 && index < m_plugin_items.size()) {
+        return m_plugin_items[index];
     }
     return nullptr;
+}
+
+int CCPUCoreBarsPlugin::GetItemCount()
+{
+    return static_cast<int>(m_plugin_items.size());
 }
 
 void CCPUCoreBarsPlugin::DataRequired()
 {
     UpdateCpuUsage();
     UpdateGpuLimitReason();
+    UpdateHardwareMonitorItems();
     
-    // 减少事件日志查询频率 - 30秒检查一次
     DWORD current_time = GetTickCount();
     if (current_time - m_last_error_check_time > ERROR_CHECK_INTERVAL_MS) {
         UpdateWheaErrorCount();
@@ -348,12 +363,12 @@ void CCPUCoreBarsPlugin::DataRequired()
 const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
 {
     switch (index) {
-    case TMI_NAME: return L"性能/错误监控";
-    case TMI_DESCRIPTION: return L"CPU核心条形图/GPU受限&错误/WHEA错误";
+    case TMI_NAME: return L"性能/错误/温度监控";
+    case TMI_DESCRIPTION: return L"CPU核心/GPU受限/WHEA错误/硬件温度";
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.6.0";
+    case TMI_VERSION: return L"3.7.0";
     default: return L"";
     }
 }
@@ -369,37 +384,136 @@ void CCPUCoreBarsPlugin::InitNVML()
     pfn_nvmlDeviceGetCurrentClocksThrottleReasons = (decltype(pfn_nvmlDeviceGetCurrentClocksThrottleReasons))GetProcAddress(m_nvml_dll, "nvmlDeviceGetCurrentClocksThrottleReasons");
 
     if (!pfn_nvmlInit || !pfn_nvmlShutdown || !pfn_nvmlDeviceGetHandleByIndex || !pfn_nvmlDeviceGetCurrentClocksThrottleReasons) {
-        ShutdownNVML();
-        return;
+        ShutdownNVML(); return;
     }
     if (pfn_nvmlInit() != NVML_SUCCESS) {
-        ShutdownNVML();
-        return;
+        ShutdownNVML(); return;
     }
     if (pfn_nvmlDeviceGetHandleByIndex(0, &m_nvml_device) != NVML_SUCCESS) {
-        ShutdownNVML();
-        return;
+        ShutdownNVML(); return;
     }
     m_nvml_initialized = true;
     m_gpu_item = new CNvidiaMonitorItem();
+    m_plugin_items.push_back(m_gpu_item);
 }
 
 void CCPUCoreBarsPlugin::ShutdownNVML()
 {
-    if (m_nvml_initialized && pfn_nvmlShutdown) {
-        pfn_nvmlShutdown();
-    }
-    if (m_nvml_dll) {
-        FreeLibrary(m_nvml_dll);
-    }
+    if (m_nvml_initialized && pfn_nvmlShutdown) pfn_nvmlShutdown();
+    if (m_nvml_dll) FreeLibrary(m_nvml_dll);
     m_nvml_initialized = false;
     m_nvml_dll = nullptr;
+}
+
+void CCPUCoreBarsPlugin::InitHardwareMonitor()
+{
+    try
+    {
+        m_updateVisitor = gcnew UpdateVisitor();
+        m_computer = gcnew Computer();
+        m_computer->Open();
+        m_computer->IsCpuEnabled = true;
+        m_computer->IsGpuEnabled = true;
+        m_computer->Accept(m_updateVisitor);
+
+        ISensor^ cpu_temp_sensor = nullptr;
+        ISensor^ gpu_temp_sensor = nullptr;
+
+        for each (IHardware^ hardware in m_computer->Hardware)
+        {
+            // Find CPU Temperature Sensor ("Core Max" or "Package")
+            if (hardware->HardwareType == HardwareType::Cpu)
+            {
+                for each (ISensor^ sensor in hardware->Sensors)
+                {
+                    if (sensor->SensorType == SensorType::Temperature && sensor->Name->Contains("Max"))
+                    {
+                        cpu_temp_sensor = sensor;
+                        break;
+                    }
+                }
+                // Fallback to first temperature sensor if "Max" not found
+                if (cpu_temp_sensor == nullptr)
+                {
+                    for each (ISensor^ sensor in hardware->Sensors)
+                    {
+                        if (sensor->SensorType == SensorType::Temperature)
+                        {
+                            cpu_temp_sensor = sensor;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Find GPU Temperature Sensor ("GPU Core")
+            if (hardware->HardwareType == HardwareType::GpuNvidia || hardware->HardwareType == HardwareType::GpuAmd || hardware->HardwareType == HardwareType::GpuIntel)
+            {
+                for each (ISensor^ sensor in hardware->Sensors)
+                {
+                    if (sensor->SensorType == SensorType::Temperature && sensor->Name->Equals("GPU Core"))
+                    {
+                        gpu_temp_sensor = sensor;
+                        break;
+                    }
+                }
+                 // Fallback to first temperature sensor if "GPU Core" not found
+                if (gpu_temp_sensor == nullptr)
+                {
+                    for each (ISensor^ sensor in hardware->Sensors)
+                    {
+                        if (sensor->SensorType == SensorType::Temperature)
+                        {
+                            gpu_temp_sensor = sensor;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (cpu_temp_sensor != nullptr)
+        {
+            std::wstring identifier = HardwareMonitor::StringToStdWstring(HardwareMonitor::GetSensorIdentifier(cpu_temp_sensor));
+            m_cpu_temp_item = new CHardwareMonitorItem(identifier, L"CPU Max");
+            m_plugin_items.push_back(m_cpu_temp_item);
+        }
+
+        if (gpu_temp_sensor != nullptr)
+        {
+            std::wstring identifier = HardwareMonitor::StringToStdWstring(HardwareMonitor::GetSensorIdentifier(gpu_temp_sensor));
+            m_gpu_temp_item = new CHardwareMonitorItem(identifier, L"GPU");
+            m_plugin_items.push_back(m_gpu_temp_item);
+        }
+    }
+    catch (Exception^)
+    {
+        // Handle initialization error
+    }
+}
+
+void CCPUCoreBarsPlugin::ShutdownHardwareMonitor()
+{
+    if (m_computer)
+    {
+        m_computer->Close();
+        m_computer = nullptr;
+    }
+}
+
+void CCPUCoreBarsPlugin::UpdateHardwareMonitorItems()
+{
+    if (m_computer)
+    {
+        m_computer->Accept(m_updateVisitor);
+        if (m_cpu_temp_item) m_cpu_temp_item->UpdateValue();
+        if (m_gpu_temp_item) m_gpu_temp_item->UpdateValue();
+    }
 }
 
 void CCPUCoreBarsPlugin::UpdateGpuLimitReason()
 {
     if (!m_nvml_initialized || !m_gpu_item) return;
-
     unsigned long long reasons = 0;
     if (pfn_nvmlDeviceGetCurrentClocksThrottleReasons(m_nvml_device, &reasons) == NVML_SUCCESS) {
         if (reasons & nvmlClocksThrottleReasonHwThermalSlowdown) { m_gpu_item->SetValue(L"过热"); }
@@ -421,9 +535,10 @@ void CCPUCoreBarsPlugin::UpdateCpuUsage()
         for (int i = 0; i < m_num_cores; ++i) {
             PDH_FMT_COUNTERVALUE value;
             if (PdhGetFormattedCounterValue(m_counters[i], PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS) {
-                m_items[i]->SetUsage(value.doubleValue / 100.0);
+                // Accessing the item through the generic vector requires a cast
+                static_cast<CCpuUsageItem*>(m_plugin_items[i])->SetUsage(value.doubleValue / 100.0);
             } else {
-                m_items[i]->SetUsage(0.0);
+                static_cast<CCpuUsageItem*>(m_plugin_items[i])->SetUsage(0.0);
             }
         }
     }
@@ -435,11 +550,9 @@ void CCPUCoreBarsPlugin::DetectCoreTypes()
     DWORD length = 0;
     GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length);
     if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) return;
-
     std::vector<char> buffer(length);
     PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX proc_info = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buffer.data();
     if (!GetLogicalProcessorInformationEx(RelationProcessorCore, proc_info, &length)) return;
-
     char* ptr = buffer.data();
     while (ptr < buffer.data() + length) {
         PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX current_info = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)ptr;
@@ -461,31 +574,19 @@ void CCPUCoreBarsPlugin::DetectCoreTypes()
     }
 }
 
-// 优化的事件日志查询函数
 DWORD CCPUCoreBarsPlugin::QueryEventLogCount(LPCWSTR provider_name)
 {
-    // 使用更高效的查询字符串
     wchar_t query[256];
-    swprintf_s(query, 
-        L"*[System[Provider[@Name='%s'] and TimeCreated[timediff(@SystemTime) <= 86400000]]]",
-        provider_name);
-        
-    EVT_HANDLE hResults = EvtQuery(NULL, L"System", query, 
-        EvtQueryChannelPath | EvtQueryReverseDirection);
+    swprintf_s(query, L"*[System[Provider[@Name='%s'] and TimeCreated[timediff(@SystemTime) <= 86400000]]]", provider_name);
+    EVT_HANDLE hResults = EvtQuery(NULL, L"System", query, EvtQueryChannelPath | EvtQueryReverseDirection);
     if (hResults == NULL) return 0;
-
     DWORD total_count = 0;
-    EVT_HANDLE hEvents[256]; // 增大批处理大小
+    EVT_HANDLE hEvents[256];
     DWORD returned = 0;
-    
     while (EvtNext(hResults, ARRAYSIZE(hEvents), hEvents, 1000, 0, &returned)) {
         total_count += returned;
-        // 批量关闭事件句柄
-        for (DWORD i = 0; i < returned; i++) {
-            EvtClose(hEvents[i]);
-        }
+        for (DWORD i = 0; i < returned; i++) EvtClose(hEvents[i]);
     }
-    
     EvtClose(hResults);
     return total_count;
 }

@@ -1,12 +1,28 @@
-// CPUCoreBars/CPUCoreBars.h - 性能优化版本
+// CPUCoreBars/CPUCoreBars.h - 性能优化和硬件监控集成版本
 #pragma once
 #include <windows.h>
 #include <vector>
+#include <string>
 #include <Pdh.h>
 // GDI+ headers must be included after windows.h
 #include <gdiplus.h> 
 #include "PluginInterface.h"
 #include "nvml.h"
+#include <gcroot.h>
+
+// Forward declarations for .NET types from LibreHardwareMonitor
+namespace LibreHardwareMonitor
+{
+    namespace Hardware
+    {
+        ref class Computer;
+        ref class ISensor;
+        enum class HardwareType;
+        enum class SensorType;
+    }
+}
+ref class UpdateVisitor;
+
 
 using namespace Gdiplus;
 
@@ -33,21 +49,17 @@ public:
 private:
     void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
     
-    // 新增：内联函数声明
     inline COLORREF CalculateBarColor() const;
     
-    // 原有成员变量
     int m_core_index;
     double m_usage = 0.0;
     wchar_t m_item_name[32];
     wchar_t m_item_id[32];
     bool m_is_e_core;
     
-    // 新增：静态字体缓存
     static HFONT s_symbolFont;
     static int s_fontRefCount;
     
-    // 新增：GDI对象缓存
     mutable HBRUSH m_cachedBgBrush;
     mutable HBRUSH m_cachedBarBrush;
     mutable COLORREF m_lastBgColor;
@@ -79,28 +91,55 @@ public:
     void SetSystemErrorStatus(bool has_error);
 
 private:
-    // 新增：内联函数声明
     inline COLORREF CalculateTextColor(bool dark_mode) const;
     
-    // 原有成员变量
     wchar_t m_value_text[128];
     int m_width = 100;
     bool m_has_system_error = false;
     
-    // 新增：Graphics对象缓存
     mutable Graphics* m_cachedGraphics;
     mutable HDC m_lastHdc;
 };
 
+// =================================================================
+// Generic Hardware Monitor Item - 新增
+// =================================================================
+class CHardwareMonitorItem : public IPluginItem
+{
+public:
+    CHardwareMonitorItem(const std::wstring& identifier, const std::wstring& label_text);
+    virtual ~CHardwareMonitorItem() = default;
+
+    const wchar_t* GetItemName() const override;
+    const wchar_t* GetItemId() const override;
+    const wchar_t* GetItemLableText() const override;
+    const wchar_t* GetItemValueText() const override;
+    const wchar_t* GetItemValueSampleText() const override;
+    bool IsCustomDraw() const override;
+    int GetItemWidth() const override;
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+
+    void UpdateValue();
+
+private:
+    std::wstring m_identifier;
+    std::wstring m_name;
+    std::wstring m_id;
+    std::wstring m_label_text;
+    std::wstring m_value_text;
+    std::wstring m_sample_text;
+};
+
 
 // =================================================================
-// Main Plugin Class - 优化版本
+// Main Plugin Class - 优化和硬件监控集成版本
 // =================================================================
 class CCPUCoreBarsPlugin : public ITMPlugin
 {
 public:
     static CCPUCoreBarsPlugin& Instance();
     IPluginItem* GetItem(int index) override;
+    int GetItemCount() override;
     void DataRequired() override;
     const wchar_t* GetInfo(PluginInfoIndex index) override;
 
@@ -119,15 +158,23 @@ private:
     void UpdateWheaErrorCount();
     void UpdateNvlddmkmErrorCount();
     
-    // 新增：优化的事件日志查询函数
+    // 新增硬件监控相关函数
+    void InitHardwareMonitor();
+    void ShutdownHardwareMonitor();
+    void UpdateHardwareMonitorItems();
+    
     DWORD QueryEventLogCount(LPCWSTR provider_name);
 
-    // 原有成员变量
-    std::vector<CCpuUsageItem*> m_items;
+    // 插件项目容器
+    std::vector<IPluginItem*> m_plugin_items;
+
+    // CPU 监控成员
     int m_num_cores;
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
     std::vector<BYTE> m_core_efficiency;
+
+    // GPU/错误 监控成员
     CNvidiaMonitorItem* m_gpu_item = nullptr;
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
@@ -142,9 +189,14 @@ private:
     decltype(nvmlDeviceGetHandleByIndex_v2)* pfn_nvmlDeviceGetHandleByIndex;
     decltype(nvmlDeviceGetCurrentClocksThrottleReasons)* pfn_nvmlDeviceGetCurrentClocksThrottleReasons;
     
-    // 新增：事件日志查询缓存和频率控制
     DWORD m_cached_whea_count;
     DWORD m_cached_nvlddmkm_count;
     DWORD m_last_error_check_time;
     static const DWORD ERROR_CHECK_INTERVAL_MS = 60000; // 60秒检查间隔
+
+    // 新增硬件监控成员
+    gcroot<LibreHardwareMonitor::Hardware::Computer^> m_computer;
+    gcroot<UpdateVisitor^> m_updateVisitor;
+    CHardwareMonitorItem* m_cpu_temp_item = nullptr;
+    CHardwareMonitorItem* m_gpu_temp_item = nullptr;
 };
