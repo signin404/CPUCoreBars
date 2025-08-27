@@ -3,31 +3,12 @@
 #include <windows.h>
 #include <vector>
 #include <Pdh.h>
+// GDI+ headers must be included after windows.h
 #include <gdiplus.h> 
 #include "PluginInterface.h"
 #include "nvml.h"
-#include "resource.h" // Include resource header for dialog
 
 using namespace Gdiplus;
-
-// =================================================================
-// Settings Structure
-// =================================================================
-struct PluginSettings
-{
-    // Default values
-    DWORD error_check_interval_ms = 60000;
-    COLORREF temp_cool = RGB(118, 202, 83);
-    COLORREF temp_warm = RGB(246, 182, 78);
-    COLORREF temp_hot = RGB(217, 66, 53);
-    COLORREF cpu_high_usage = RGB(217, 66, 53);
-    COLORREF cpu_med_usage = RGB(246, 182, 78);
-    COLORREF cpu_pcore = RGB(38, 160, 218);
-    COLORREF cpu_ecore = RGB(118, 202, 83);
-    COLORREF gpu_status_error = RGB(217, 66, 53);
-    COLORREF gpu_status_ok = RGB(118, 202, 83);
-};
-
 
 // =================================================================
 // CPU Core Item - 优化版本
@@ -51,7 +32,8 @@ public:
 
 private:
     void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
-    COLORREF CalculateBarColor() const;
+    
+    inline COLORREF CalculateBarColor() const;
     
     int m_core_index;
     double m_usage = 0.0;
@@ -104,7 +86,7 @@ private:
 };
 
 // =================================================================
-// Temperature Item (for CPU and GPU) - With Custom Colors
+// Temperature Item (for CPU and GPU) - Final Version
 // =================================================================
 class CTempMonitorItem : public IPluginItem
 {
@@ -146,10 +128,6 @@ public:
     void DataRequired() override;
     const wchar_t* GetInfo(PluginInfoIndex index) override;
     void OnMonitorInfo(const ITMPlugin::MonitorInfo& monitor_info) override;
-    void OnInitialize(ITrafficMonitor* pApp) override;
-    OptionReturn ShowOptionsDialog(void* hParent) override;
-
-    PluginSettings m_settings;
 
 private:
     CCPUCoreBarsPlugin();
@@ -157,9 +135,6 @@ private:
     CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
     CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
     
-    void LoadSettings();
-    void SaveSettings();
-
     void UpdateCpuUsage();
     void DetectCoreTypes();
     void InitNVML();
@@ -178,7 +153,9 @@ private:
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
     nvmlDevice_t m_nvml_device;
-    
+    int m_whea_error_count = 0;
+    int m_nvlddmkm_error_count = 0;
+
     CTempMonitorItem* m_cpu_temp_item = nullptr;
     CTempMonitorItem* m_gpu_temp_item = nullptr;
     int m_cpu_temp = 0;
@@ -194,7 +171,5 @@ private:
     DWORD m_cached_whea_count;
     DWORD m_cached_nvlddmkm_count;
     DWORD m_last_error_check_time;
-
-    wchar_t m_config_file_path[MAX_PATH]{};
-    ITrafficMonitor* m_pApp = nullptr;
+    static const DWORD ERROR_CHECK_INTERVAL_MS = 60000;
 };
