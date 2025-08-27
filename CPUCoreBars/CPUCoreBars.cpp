@@ -1,30 +1,16 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化和硬件监控集成版本
+// CPUCoreBars/CPUCoreBars.cpp - Final Corrected Version
 #include "CPUCoreBars.h"
 #include <string>
-#include <PdhMsg.h>
-#include <winevt.h>
 
-#pragma comment(lib, "pdh.lib")
-#pragma comment(lib, "wevtapi.lib")
-#pragma comment(lib, "gdiplus.lib")
-
-// Add .NET references for LibreHardwareMonitor
-// IMPORTANT: Ensure LibreHardwareMonitorLib.dll is in the build output directory 
-// or its path is added to the project's Additional #using Directories.
-#using <System.dll>
-#using "LibreHardwareMonitorLib.dll"
-
-using namespace Gdiplus;
+// The #using directive is now in the header file, so it's not needed here.
 using namespace System;
 using namespace System::Runtime::InteropServices;
-using namespace LibreHardwareMonitor::Hardware;
 
 // =================================================================
-// Helper functions (adapted from HardwareMonitorHelper and Common)
+// Helper functions
 // =================================================================
 namespace HardwareMonitor
 {
-    // Helper to convert System::String to std::wstring
     std::wstring StringToStdWstring(String^ s)
     {
         if (s == nullptr)
@@ -35,7 +21,6 @@ namespace HardwareMonitor
         return os;
     }
 
-    // Helper to get a unique identifier for a sensor
     String^ GetSensorIdentifier(ISensor^ sensor)
     {
         String^ path;
@@ -51,35 +36,33 @@ namespace HardwareMonitor
         return path;
     }
 
-    // Helper to format sensor value
     String^ GetSensorValueText(ISensor^ sensor)
     {
         if (sensor->Value.HasValue)
         {
             float value = sensor->Value.Value;
             String^ unit = L"°C";
-            String^ formatString = "F0"; // No decimal places for temperature
+            String^ formatString = "F0";
             return value.ToString(formatString) + unit;
         }
         return "--";
     }
 }
 
-
 // =================================================================
-// CCpuUsageItem implementation (unchanged)
+// CCpuUsageItem implementation
 // =================================================================
 HFONT CCpuUsageItem::s_symbolFont = nullptr;
 int CCpuUsageItem::s_fontRefCount = 0;
 
-CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) 
+CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core)
     : m_core_index(core_index), m_is_e_core(is_e_core),
       m_cachedBgBrush(nullptr), m_cachedBarBrush(nullptr),
       m_lastBgColor(0), m_lastBarColor(0), m_lastDarkMode(false)
 {
     if (s_symbolFont == nullptr) {
-        s_symbolFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+        s_symbolFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
     }
     s_fontRefCount++;
@@ -157,7 +140,7 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 }
 
 // =================================================================
-// CNvidiaMonitorItem implementation (unchanged)
+// CNvidiaMonitorItem implementation
 // =================================================================
 CNvidiaMonitorItem::CNvidiaMonitorItem() : m_cachedGraphics(nullptr), m_lastHdc(nullptr)
 {
@@ -184,7 +167,7 @@ int CNvidiaMonitorItem::GetItemWidth() const { return m_width; }
 void CNvidiaMonitorItem::SetValue(const wchar_t* value) { wcscpy_s(m_value_text, value); }
 void CNvidiaMonitorItem::SetSystemErrorStatus(bool has_error) { m_has_system_error = has_error; }
 
-inline COLORREF CNvidiaMonitorItem::CalculateTextColor(bool dark_mode) const 
+inline COLORREF CNvidiaMonitorItem::CalculateTextColor(bool dark_mode) const
 {
     const wchar_t* current_value = GetItemValueText();
     if (wcscmp(current_value, L"过热") == 0) return RGB(217, 66, 53);
@@ -215,7 +198,7 @@ void CNvidiaMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool da
 }
 
 // =================================================================
-// CHardwareMonitorItem implementation - 新增
+// CHardwareMonitorItem implementation
 // =================================================================
 CHardwareMonitorItem::CHardwareMonitorItem(const std::wstring& identifier, const std::wstring& label_text)
     : m_identifier(identifier), m_label_text(label_text), m_value_text(L"--"), m_sample_text(L"100°C")
@@ -229,9 +212,6 @@ const wchar_t* CHardwareMonitorItem::GetItemId() const { return m_id.c_str(); }
 const wchar_t* CHardwareMonitorItem::GetItemLableText() const { return m_label_text.c_str(); }
 const wchar_t* CHardwareMonitorItem::GetItemValueText() const { return m_value_text.c_str(); }
 const wchar_t* CHardwareMonitorItem::GetItemValueSampleText() const { return m_sample_text.c_str(); }
-bool CHardwareMonitorItem::IsCustomDraw() const { return false; } // Use default drawing
-int CHardwareMonitorItem::GetItemWidth() const { return 0; } // Use default width
-void CHardwareMonitorItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) {} // Not used
 
 void CHardwareMonitorItem::UpdateValue()
 {
@@ -239,34 +219,23 @@ void CHardwareMonitorItem::UpdateValue()
     {
         String^ identifier_str = gcnew String(m_identifier.c_str());
         ISensor^ sensor = nullptr;
-
-        // Simplified sensor search
         auto computer = CCPUCoreBarsPlugin::Instance().m_computer;
         for each (IHardware^ hardware in computer->Hardware)
         {
             for each (ISensor^ s in hardware->Sensors)
             {
-                if (HardwareMonitor::GetSensorIdentifier(s) == identifier_str)
-                {
-                    sensor = s;
-                    break;
-                }
+                if (HardwareMonitor::GetSensorIdentifier(s) == identifier_str) { sensor = s; break; }
             }
             if (sensor != nullptr) break;
             for each (IHardware^ subHardware in hardware->SubHardware)
             {
                  for each (ISensor^ s in subHardware->Sensors)
                  {
-                    if (HardwareMonitor::GetSensorIdentifier(s) == identifier_str)
-                    {
-                        sensor = s;
-                        break;
-                    }
+                    if (HardwareMonitor::GetSensorIdentifier(s) == identifier_str) { sensor = s; break; }
                  }
                  if (sensor != nullptr) break;
             }
         }
-
         if (sensor != nullptr)
         {
             m_value_text = HardwareMonitor::StringToStdWstring(HardwareMonitor::GetSensorValueText(sensor));
@@ -283,7 +252,7 @@ void CHardwareMonitorItem::UpdateValue()
 }
 
 // =================================================================
-// CCPUCoreBarsPlugin implementation - 修改
+// CCPUCoreBarsPlugin implementation
 // =================================================================
 CCPUCoreBarsPlugin& CCPUCoreBarsPlugin::Instance()
 {
@@ -365,7 +334,7 @@ const wchar_t* CCPUCoreBarsPlugin::GetInfo(PluginInfoIndex index)
     case TMI_AUTHOR: return L"Your Name";
     case TMI_COPYRIGHT: return L"Copyright (C) 2025";
     case TMI_URL: return L"";
-    case TMI_VERSION: return L"3.7.0";
+    case TMI_VERSION: return L"3.8.0";
     default: return L"";
     }
 }
@@ -418,54 +387,15 @@ void CCPUCoreBarsPlugin::InitHardwareMonitor()
 
         for each (IHardware^ hardware in m_computer->Hardware)
         {
-            // Find CPU Temperature Sensor ("Core Max" or "Package")
             if (hardware->HardwareType == HardwareType::Cpu)
             {
-                for each (ISensor^ sensor in hardware->Sensors)
-                {
-                    if (sensor->SensorType == SensorType::Temperature && sensor->Name->Contains("Max"))
-                    {
-                        cpu_temp_sensor = sensor;
-                        break;
-                    }
-                }
-                // Fallback to first temperature sensor if "Max" not found
-                if (cpu_temp_sensor == nullptr)
-                {
-                    for each (ISensor^ sensor in hardware->Sensors)
-                    {
-                        if (sensor->SensorType == SensorType::Temperature)
-                        {
-                            cpu_temp_sensor = sensor;
-                            break;
-                        }
-                    }
-                }
+                for each (ISensor^ sensor in hardware->Sensors) { if (sensor->SensorType == SensorType::Temperature && sensor->Name->Contains("Max")) { cpu_temp_sensor = sensor; break; } }
+                if (cpu_temp_sensor == nullptr) { for each (ISensor^ sensor in hardware->Sensors) { if (sensor->SensorType == SensorType::Temperature) { cpu_temp_sensor = sensor; break; } } }
             }
-
-            // Find GPU Temperature Sensor ("GPU Core")
             if (hardware->HardwareType == HardwareType::GpuNvidia || hardware->HardwareType == HardwareType::GpuAmd || hardware->HardwareType == HardwareType::GpuIntel)
             {
-                for each (ISensor^ sensor in hardware->Sensors)
-                {
-                    if (sensor->SensorType == SensorType::Temperature && sensor->Name->Equals("GPU Core"))
-                    {
-                        gpu_temp_sensor = sensor;
-                        break;
-                    }
-                }
-                 // Fallback to first temperature sensor if "GPU Core" not found
-                if (gpu_temp_sensor == nullptr)
-                {
-                    for each (ISensor^ sensor in hardware->Sensors)
-                    {
-                        if (sensor->SensorType == SensorType::Temperature)
-                        {
-                            gpu_temp_sensor = sensor;
-                            break;
-                        }
-                    }
-                }
+                for each (ISensor^ sensor in hardware->Sensors) { if (sensor->SensorType == SensorType::Temperature && sensor->Name->Equals("GPU Core")) { gpu_temp_sensor = sensor; break; } }
+                if (gpu_temp_sensor == nullptr) { for each (ISensor^ sensor in hardware->Sensors) { if (sensor->SensorType == SensorType::Temperature) { gpu_temp_sensor = sensor; break; } } }
             }
         }
 
@@ -483,10 +413,7 @@ void CCPUCoreBarsPlugin::InitHardwareMonitor()
             m_plugin_items.push_back(m_gpu_temp_item);
         }
     }
-    catch (Exception^)
-    {
-        // Handle initialization error
-    }
+    catch (Exception^) { /* Handle initialization error */ }
 }
 
 void CCPUCoreBarsPlugin::ShutdownHardwareMonitor()
@@ -532,7 +459,6 @@ void CCPUCoreBarsPlugin::UpdateCpuUsage()
         for (int i = 0; i < m_num_cores; ++i) {
             PDH_FMT_COUNTERVALUE value;
             if (PdhGetFormattedCounterValue(m_counters[i], PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS) {
-                // Accessing the item through the generic vector requires a cast
                 static_cast<CCpuUsageItem*>(m_plugin_items[i])->SetUsage(value.doubleValue / 100.0);
             } else {
                 static_cast<CCpuUsageItem*>(m_plugin_items[i])->SetUsage(0.0);

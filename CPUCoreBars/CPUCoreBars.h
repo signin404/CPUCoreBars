@@ -1,33 +1,30 @@
-// CPUCoreBars/CPUCoreBars.h - 性能优化和硬件监控集成版本
+// CPUCoreBars/CPUCoreBars.h - Final Corrected Version
 #pragma once
 #include <windows.h>
 #include <vector>
 #include <string>
 #include <Pdh.h>
-// GDI+ headers must be included after windows.h
 #include <gdiplus.h> 
 #include "PluginInterface.h"
 #include "nvml.h"
 #include <gcroot.h>
 
-// Forward declarations for .NET types from LibreHardwareMonitor
-namespace LibreHardwareMonitor
-{
-    namespace Hardware
-    {
-        ref class Computer;
-        ref class ISensor;
-        enum class HardwareType;
-        enum class SensorType;
-    }
-}
+// IMPORTANT: Import the managed assembly here so all types are fully defined.
+#pragma comment(lib, "pdh.lib")
+#pragma comment(lib, "wevtapi.lib")
+#pragma comment(lib, "gdiplus.lib")
+#using <System.dll>
+#using "LibreHardwareMonitorLib.dll"
+
+// Use the namespaces to simplify type names
+using namespace Gdiplus;
+using namespace LibreHardwareMonitor::Hardware;
+
+// Forward declaration for the UpdateVisitor class
 ref class UpdateVisitor;
 
-
-using namespace Gdiplus;
-
 // =================================================================
-// CPU Core Item - 优化版本
+// CPU Core Item
 // =================================================================
 class CCpuUsageItem : public IPluginItem
 {
@@ -48,7 +45,6 @@ public:
 
 private:
     void DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode);
-    
     inline COLORREF CalculateBarColor() const;
     
     int m_core_index;
@@ -67,9 +63,8 @@ private:
     mutable bool m_lastDarkMode;
 };
 
-
 // =================================================================
-// GPU / System Error Combined Item - 优化版本
+// GPU / System Error Combined Item
 // =================================================================
 class CNvidiaMonitorItem : public IPluginItem
 {
@@ -82,7 +77,6 @@ public:
     const wchar_t* GetItemLableText() const override;
     const wchar_t* GetItemValueText() const override;
     const wchar_t* GetItemValueSampleText() const override;
-
     bool IsCustomDraw() const override;
     int GetItemWidth() const override;
     void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
@@ -102,7 +96,7 @@ private:
 };
 
 // =================================================================
-// Generic Hardware Monitor Item - 新增
+// Generic Hardware Monitor Item
 // =================================================================
 class CHardwareMonitorItem : public IPluginItem
 {
@@ -115,9 +109,9 @@ public:
     const wchar_t* GetItemLableText() const override;
     const wchar_t* GetItemValueText() const override;
     const wchar_t* GetItemValueSampleText() const override;
-    bool IsCustomDraw() const override;
-    int GetItemWidth() const override;
-    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override;
+    bool IsCustomDraw() const override { return false; }
+    int GetItemWidth() const override { return 0; }
+    void DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mode) override {}
 
     void UpdateValue();
 
@@ -130,18 +124,19 @@ private:
     std::wstring m_sample_text;
 };
 
-
 // =================================================================
-// Main Plugin Class - 优化和硬件监控集成版本
+// Main Plugin Class
 // =================================================================
 class CCPUCoreBarsPlugin : public ITMPlugin
 {
 public:
     static CCPUCoreBarsPlugin& Instance();
     IPluginItem* GetItem(int index) override;
-    int GetItemCount() override;
     void DataRequired() override;
     const wchar_t* GetInfo(PluginInfoIndex index) override;
+
+    // Public member to allow CHardwareMonitorItem to access the computer object
+    gcroot<Computer^> m_computer;
 
 private:
     CCPUCoreBarsPlugin();
@@ -149,7 +144,6 @@ private:
     CCPUCoreBarsPlugin(const CCPUCoreBarsPlugin&) = delete;
     CCPUCoreBarsPlugin& operator=(const CCPUCoreBarsPlugin&) = delete;
     
-    // 原有函数
     void UpdateCpuUsage();
     void DetectCoreTypes();
     void InitNVML();
@@ -157,24 +151,17 @@ private:
     void UpdateGpuLimitReason();
     void UpdateWheaErrorCount();
     void UpdateNvlddmkmErrorCount();
-    
-    // 新增硬件监控相关函数
     void InitHardwareMonitor();
     void ShutdownHardwareMonitor();
     void UpdateHardwareMonitorItems();
-    
     DWORD QueryEventLogCount(LPCWSTR provider_name);
 
-    // 插件项目容器
     std::vector<IPluginItem*> m_plugin_items;
-
-    // CPU 监控成员
     int m_num_cores;
     PDH_HQUERY m_query = nullptr;
     std::vector<PDH_HCOUNTER> m_counters;
     std::vector<BYTE> m_core_efficiency;
 
-    // GPU/错误 监控成员
     CNvidiaMonitorItem* m_gpu_item = nullptr;
     bool m_nvml_initialized = false;
     HMODULE m_nvml_dll = nullptr;
@@ -192,10 +179,8 @@ private:
     DWORD m_cached_whea_count;
     DWORD m_cached_nvlddmkm_count;
     DWORD m_last_error_check_time;
-    static const DWORD ERROR_CHECK_INTERVAL_MS = 60000; // 60秒检查间隔
+    static const DWORD ERROR_CHECK_INTERVAL_MS = 60000;
 
-    // 新增硬件监控成员
-    gcroot<LibreHardwareMonitor::Hardware::Computer^> m_computer;
     gcroot<UpdateVisitor^> m_updateVisitor;
     CHardwareMonitorItem* m_cpu_temp_item = nullptr;
     CHardwareMonitorItem* m_gpu_temp_item = nullptr;
