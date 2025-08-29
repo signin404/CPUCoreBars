@@ -97,7 +97,7 @@ inline COLORREF CCpuUsageItem::CalculateBarColor() const
     
     // 基于核心索引的颜色
     if (m_core_index >= 12 && m_core_index <= 19) {
-        return RGB(128, 128, 255);  // E-Core
+        return RGB(0, 170, 170);  // E-Core
     }
     return (m_core_index % 2 == 1) ? RGB(38, 160, 218) : RGB(118, 202, 83);
 }
