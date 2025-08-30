@@ -95,11 +95,14 @@ inline COLORREF CCpuUsageItem::CalculateBarColor() const
     if (m_usage >= 0.9) return RGB(217, 66, 53);  // 红色
     if (m_usage >= 0.5) return RGB(246, 182, 78); // 橙色
     
-    // 基于核心索引的颜色
-    if (m_core_index >= 12 && m_core_index <= 19) {
-        return RGB(217, 66, 53);  // 红色
+    // 根据核心类型设置颜色
+    if (m_is_e_core) {
+        return RGB(150, 150, 75);  // E-Core
     }
-    return (m_core_index % 2 == 1) ? RGB(38, 160, 218) : RGB(118, 202, 83);
+    else {
+        // 非 E-Core (P-Core)
+        return (m_core_index % 2 == 0) ? RGB(118, 202, 83) : RGB(38, 160, 218); // 偶数核心: 绿色, 奇数核心: 蓝色
+    }
 }
 
 void CCpuUsageItem::DrawECoreSymbol(HDC hDC, const RECT& rect, bool dark_mode)
