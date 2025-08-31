@@ -45,6 +45,7 @@ private:
     
     // 新增：静态字体缓存
     static HFONT s_symbolFont;
+    static HFONT s_coreNumberFont; // Added missing declaration
     static int s_fontRefCount;
     
     // 新增：GDI对象缓存
