@@ -1,4 +1,4 @@
-﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
@@ -16,6 +16,7 @@ using namespace Gdiplus;
 
 // 静态成员变量定义
 HFONT CCpuUsageItem::s_symbolFont = nullptr;
+HFONT CCpuUsageItem::s_coreNumberFont = nullptr; // Font for core numbers
 int CCpuUsageItem::s_fontRefCount = 0;
 
 CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core) 
@@ -23,11 +24,14 @@ CCpuUsageItem::CCpuUsageItem(int core_index, bool is_e_core)
       m_cachedBgBrush(nullptr), m_cachedBarBrush(nullptr),
       m_lastBgColor(0), m_lastBarColor(0), m_lastDarkMode(false)
 {
-    // 初始化静态字体（只创建一次）
-    if (s_symbolFont == nullptr) {
+    // Initialize static fonts (only create once)
+    if (s_fontRefCount == 0) {
         s_symbolFont = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
+        s_coreNumberFont = CreateFontW(10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
     }
     s_fontRefCount++;
     
@@ -43,9 +47,15 @@ CCpuUsageItem::~CCpuUsageItem()
     
     // 减少字体引用计数
     s_fontRefCount--;
-    if (s_fontRefCount == 0 && s_symbolFont) {
-        DeleteObject(s_symbolFont);
-        s_symbolFont = nullptr;
+    if (s_fontRefCount == 0) {
+        if (s_symbolFont) {
+            DeleteObject(s_symbolFont);
+            s_symbolFont = nullptr;
+        }
+        if (s_coreNumberFont) {
+            DeleteObject(s_coreNumberFont);
+            s_coreNumberFont = nullptr;
+        }
     }
 }
 
@@ -153,6 +163,22 @@ void CCpuUsageItem::DrawItem(void* hDC, int x, int y, int w, int h, bool dark_mo
 
     if (m_is_e_core) {
         DrawECoreSymbol(dc, rect, dark_mode);
+    }
+    else {
+        // For non-E-cores, draw the core number at the top
+        wchar_t core_num_str[4]; // Buffer for core number string
+        swprintf_s(core_num_str, L"%d", m_core_index);
+
+        COLORREF text_color = dark_mode ? RGB(255, 255, 255) : RGB(0, 0, 0);
+        SetTextColor(dc, text_color);
+        SetBkMode(dc, TRANSPARENT);
+
+        // Use the cached core number font
+        if (s_coreNumberFont) {
+            HGDIOBJ hOldFont = SelectObject(dc, s_coreNumberFont);
+            DrawTextW(dc, core_num_str, -1, &rect, DT_CENTER | DT_TOP | DT_SINGLELINE);
+            SelectObject(dc, hOldFont);
+        }
     }
 }
 
