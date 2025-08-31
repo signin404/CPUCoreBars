@@ -1,4 +1,4 @@
-// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
+﻿// CPUCoreBars/CPUCoreBars.cpp - 性能优化版本
 #include "CPUCoreBars.h"
 #include <string>
 #include <PdhMsg.h>
