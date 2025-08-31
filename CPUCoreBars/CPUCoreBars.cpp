@@ -97,7 +97,7 @@ inline COLORREF CCpuUsageItem::CalculateBarColor() const
     
     // 根据核心类型设置颜色
     if (m_is_e_core) {
-        return RGB(246, 182, 78);  // E-Core
+        return RGB(230, 125, 220);  // E-Core
     }
     else {
         // 非 E-Core (P-Core)
