@@ -93,11 +93,11 @@ inline COLORREF CCpuUsageItem::CalculateBarColor() const
 {
     // 高使用率优先显示（性能优化：重新排列条件优先级）
     if (m_usage >= 0.9) return RGB(217, 66, 53);  // 红色
-    if (m_usage >= 0.5) return RGB(246, 182, 78); // 橙色
+    // if (m_usage >= 0.5) return RGB(246, 182, 78); // 橙色
     
     // 根据核心类型设置颜色
     if (m_is_e_core) {
-        return RGB(150, 150, 75);  // E-Core
+        return RGB(230, 125, 220);  // E-Core
     }
     else {
         // 非 E-Core (P-Core)
